@@ -100,7 +100,85 @@ class UserService {
     }
   }
 
-  /// Actualizar los datos del usuario
+  /// Actualizar perfil del usuario actual usando PATCH /me
+  ///
+  /// Parámetros:
+  /// - [token]: Token de autenticación del usuario
+  /// - [profileData]: Datos del perfil a actualizar (solo campos editables)
+  ///
+  /// Retorna:
+  /// - [Map<String, dynamic>?]: Datos actualizados del usuario
+  ///
+  /// Excepciones:
+  /// - Puede lanzar [Exception] si hay errores de validación, red o servidor
+  static Future<Map<String, dynamic>?> updateProfile(
+    String token,
+    Map<String, dynamic> profileData,
+  ) async {
+    try {
+      print('UserService: Actualizando perfil del usuario actual');
+      print('UserService: Datos a enviar: $profileData');
+
+      // Validar que solo contiene campos permitidos
+      final allowedFields = {
+        'picture',
+        'phone',
+        'timezone',
+        'checkin_start_time',
+        'notification_offset_min',
+      };
+
+      final invalidFields = profileData.keys
+          .where((key) => !allowedFields.contains(key))
+          .toList();
+
+      if (invalidFields.isNotEmpty) {
+        throw Exception('Campos no permitidos: ${invalidFields.join(', ')}');
+      }
+
+      // Realizar petición PATCH para actualizar el perfil
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl${ApiConstants.userMeEndpoint}'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode(profileData),
+          )
+          .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
+
+      print('UserService: Respuesta de actualización: ${response.statusCode}');
+
+      // Verificar si la actualización fue exitosa
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('UserService: Perfil actualizado exitosamente');
+        return _parseUserData(data);
+      } else {
+        // Manejar errores de actualización
+        final errorMessage = getErrorMessage(
+          response.statusCode,
+          response.body,
+        );
+        print('UserService: Error ${response.statusCode}: $errorMessage');
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('UserService: Error al actualizar perfil: $e');
+
+      // Convertir errores de red en mensajes más amigables
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception(ErrorMessages.timeoutError);
+      } else if (e.toString().contains('SocketException')) {
+        throw Exception(ErrorMessages.networkError);
+      } else {
+        rethrow; // Re-lanzar la excepción original
+      }
+    }
+  }
+
+  /// Actualizar los datos del usuario (DEPRECATED - usar updateProfile)
   ///
   /// Parámetros:
   /// - [token]: Token de autenticación del usuario
@@ -112,6 +190,7 @@ class UserService {
   ///
   /// Excepciones:
   /// - Puede lanzar [Exception] si hay errores de validación, red o servidor
+  @Deprecated('Usar updateProfile() que usa PATCH /me')
   static Future<Map<String, dynamic>?> updateUser(
     String token,
     int userId,

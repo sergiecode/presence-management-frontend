@@ -146,10 +146,11 @@ lib/
 
 #### **Perfil Personal**
 
-- Información básica (nombre, apellido, teléfono)
+- Información básica (nombre y apellido - **solo lectura**)
+- Información editable (teléfono, zona horaria)
 - Foto de perfil con selección desde galería/cámara
-- Zona horaria personalizada
-- Configuración de recordatorios
+- Configuración de recordatorios y horario de entrada
+- Email (solo lectura)
 
 #### **Configuración Laboral**
 
@@ -188,7 +189,7 @@ POST /api/checkins            # Check-in
 POST /api/checkins/checkout   # Check-out
 GET  /api/checkins/today      # Check-in del día
 GET  /api/users/me            # Datos del usuario
-PUT  /api/users/me            # Actualizar perfil
+PATCH /api/users/me           # Actualizar perfil (solo campos editables)
 ```
 
 ### **Manejo de Errores**

@@ -81,7 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  /// Guarda los cambios de información personal completa
+  /// Guarda los cambios de información personal (solo campos editables)
   Future<void> _saveAdvancedUserInfo({
     required String name,
     required String surname,
@@ -111,10 +111,8 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         }
 
-        // Preparar datos de actualización
-        final updateData = {
-          'name': name,
-          'surname': surname,
+        // Preparar datos de actualización (solo campos editables)
+        final profileData = <String, dynamic>{
           'phone': phone,
           'timezone': timezone,
           'notification_offset_min': notificationOffsetMin,
@@ -123,26 +121,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
         // Agregar URL de imagen si se subió exitosamente
         if (newImageUrl != null) {
-          updateData['picture'] = newImageUrl;
+          profileData['picture'] = newImageUrl;
         }
 
-        final result = await UserService.updateUser(
-          token,
-          _userData?['id'] ?? 0,
-          updateData,
-        );
+        // Usar el nuevo método updateProfile
+        final result = await UserService.updateProfile(token, profileData);
 
         if (result != null && mounted) {
           // Recargar datos para mostrar los cambios
           await _loadUserData();
-          
+
           // Programar notificaciones con la nueva configuración
           await _scheduleNotifications(
             checkinStartTime: checkinStartTime,
             notificationOffsetMin: notificationOffsetMin,
-            userName: '$name $surname',
+            userName:
+                '${_userData?['name'] ?? ''} ${_userData?['surname'] ?? ''}',
           );
-          
+
           _showSuccessSnackBar('Perfil actualizado correctamente');
         } else {
           setState(() {
@@ -173,7 +169,7 @@ class _ProfilePageState extends State<ProfilePage> {
       // Solo programar si las notificaciones están habilitadas (offset > 0)
       if (notificationOffsetMin > 0) {
         final notificationService = NotificationService();
-        
+
         // Verificar permisos
         final hasPermissions = await notificationService.hasPermissions();
         if (!hasPermissions) {

@@ -59,8 +59,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   final _formKey = GlobalKey<FormState>();
 
   /// Controladores para campos editables
-  final _nameController = TextEditingController();
-  final _surnameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _timezoneController = TextEditingController();
   final _checkinStartTimeController = TextEditingController();
@@ -101,8 +99,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   /// Puebla los campos con los datos actuales del usuario
   void _populateFields() {
     if (widget.userData != null) {
-      _nameController.text = widget.userData!['name'] ?? '';
-      _surnameController.text = widget.userData!['surname'] ?? '';
       _phoneController.text = widget.userData!['phone'] ?? '';
       _timezoneController.text = widget.userData!['timezone'] ?? 'UTC';
       _checkinStartTimeController.text =
@@ -113,8 +109,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _surnameController.dispose();
     _phoneController.dispose();
     _timezoneController.dispose();
     _checkinStartTimeController.dispose();
@@ -124,9 +118,14 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   /// Maneja el submit del formulario
   void _handleSubmit() {
     if (_formKey.currentState?.validate() ?? false) {
+      // Solo enviamos los campos editables, nombre y apellido se obtienen del userData actual
       widget.onSave(
-        name: _nameController.text.trim(),
-        surname: _surnameController.text.trim(),
+        name:
+            widget.userData!['name'] ??
+            '', // Campo readonly, pero requerido por la interfaz
+        surname:
+            widget.userData!['surname'] ??
+            '', // Campo readonly, pero requerido por la interfaz
         phone: _phoneController.text.trim(),
         timezone: _timezoneController.text.trim(),
         notificationOffsetMin: _notificationOffsetMin,
@@ -253,26 +252,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   }
 
   /// Validaciones
-  String? _validateName(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return ErrorMessages.requiredField;
-    }
-    if (value.trim().length < 2) {
-      return 'El nombre debe tener al menos 2 caracteres';
-    }
-    return null;
-  }
-
-  String? _validateSurname(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return ErrorMessages.requiredField;
-    }
-    if (value.trim().length < 2) {
-      return 'El apellido debe tener al menos 2 caracteres';
-    }
-    return null;
-  }
-
   String? _validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
       return ErrorMessages.requiredField;
@@ -326,25 +305,22 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Campos de solo lectura
+                    _buildReadOnlyField(
+                      label: 'Nombre',
+                      value: widget.userData!['name'] ?? 'No especificado',
+                      icon: Icons.person,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildReadOnlyField(
+                      label: 'Apellido',
+                      value: widget.userData!['surname'] ?? 'No especificado',
+                      icon: Icons.person_outline,
+                    ),
+                    const SizedBox(height: 16),
+
                     // Campos editables
-                    CustomTextField(
-                      controller: _nameController,
-                      labelText: 'Nombre *',
-                      prefixIcon: Icons.person,
-                      validator: _validateName,
-                      enabled: !widget.isLoading,
-                    ),
-                    const SizedBox(height: 16),
-
-                    CustomTextField(
-                      controller: _surnameController,
-                      labelText: 'Apellido *',
-                      prefixIcon: Icons.person_outline,
-                      validator: _validateSurname,
-                      enabled: !widget.isLoading,
-                    ),
-                    const SizedBox(height: 16),
-
                     CustomTextField(
                       controller: _phoneController,
                       labelText: 'Teléfono *',
@@ -574,8 +550,8 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
 
   /// Obtiene las iniciales del usuario
   String _getInitials() {
-    final name = _nameController.text.trim();
-    final surname = _surnameController.text.trim();
+    final name = widget.userData?['name'] ?? '';
+    final surname = widget.userData?['surname'] ?? '';
 
     String initials = '';
     if (name.isNotEmpty) initials += name[0].toUpperCase();
