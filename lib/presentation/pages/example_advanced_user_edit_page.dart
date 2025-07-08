@@ -46,6 +46,7 @@ class _ExampleAdvancedUserEditPageState
     required String timezone,
     required int notificationOffsetMin,
     required String checkinStartTime,
+    required String checkoutEndTime,
     File? newProfileImage,
   }) async {
     setState(() {
@@ -65,6 +66,7 @@ class _ExampleAdvancedUserEditPageState
       print('- Zona horaria: $timezone');
       print('- Recordatorio: $notificationOffsetMin minutos');
       print('- Hora check-in: $checkinStartTime');
+      print('- Hora check-out: $checkoutEndTime');
       if (newProfileImage != null) {
         print('- Nueva imagen: ${newProfileImage.path}');
       }
@@ -78,6 +80,7 @@ class _ExampleAdvancedUserEditPageState
           'timezone': timezone,
           'notification_offset_min': notificationOffsetMin,
           'checkin_start_time': checkinStartTime,
+          'checkout_end_time': checkoutEndTime,
         });
       });
 
