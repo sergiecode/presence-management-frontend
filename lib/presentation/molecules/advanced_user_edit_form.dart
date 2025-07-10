@@ -28,6 +28,7 @@ class AdvancedUserEditForm extends StatefulWidget {
     required String timezone,
     required int notificationOffsetMin,
     required String checkinStartTime,
+    required String checkoutEndTime,
     File? newProfileImage,
   })
   onSave;
@@ -62,6 +63,7 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   final _phoneController = TextEditingController();
   final _timezoneController = TextEditingController();
   final _checkinStartTimeController = TextEditingController();
+  final _checkoutEndTimeController = TextEditingController();
 
   /// Variables para campos con selección
   int _notificationOffsetMin = 0;
@@ -103,6 +105,8 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
       _timezoneController.text = widget.userData!['timezone'] ?? 'UTC';
       _checkinStartTimeController.text =
           widget.userData!['checkin_start_time'] ?? '09:00';
+      _checkoutEndTimeController.text =
+          widget.userData!['checkout_end_time'] ?? '18:00';
       _notificationOffsetMin = widget.userData!['notification_offset_min'] ?? 0;
     }
   }
@@ -112,6 +116,7 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
     _phoneController.dispose();
     _timezoneController.dispose();
     _checkinStartTimeController.dispose();
+    _checkoutEndTimeController.dispose();
     super.dispose();
   }
 
@@ -130,6 +135,7 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
         timezone: _timezoneController.text.trim(),
         notificationOffsetMin: _notificationOffsetMin,
         checkinStartTime: _checkinStartTimeController.text.trim(),
+        checkoutEndTime: _checkoutEndTimeController.text.trim(),
         newProfileImage: _selectedProfileImage,
       );
     }
@@ -170,6 +176,29 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
     if (picked != null) {
       setState(() {
         _checkinStartTimeController.text =
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      });
+    }
+  }
+
+  /// Selecciona hora de check-out
+  Future<void> _selectCheckoutEndTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: AppColors.primary),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _checkoutEndTimeController.text =
             '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       });
     }
@@ -470,6 +499,19 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                       readOnly: true,
                       enabled: !widget.isLoading,
                       onTap: _selectCheckinTime,
+                      suffixIcon: const Icon(Icons.schedule),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Hora de check-out
+                    CustomTextField(
+                      controller: _checkoutEndTimeController,
+                      labelText: 'Hora de Check-out',
+                      prefixIcon: Icons.access_time_filled,
+                      readOnly: true,
+                      enabled: !widget.isLoading,
+                      onTap: _selectCheckoutEndTime,
                       suffixIcon: const Icon(Icons.schedule),
                     ),
 
