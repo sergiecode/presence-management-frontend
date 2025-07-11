@@ -42,7 +42,6 @@ class UserService {
       'email_confirmed': data['email_confirmed'] ?? false,
       'deactivated': data['deactivated'] ?? false,
       'pending_approval': data['pending_approval'] ?? false,
-      'checkout_end_time': data['checkout_end_time'] ?? '',
     };
   }
 
@@ -127,7 +126,6 @@ class UserService {
         'timezone',
         'checkin_start_time',
         'notification_offset_min',
-        'checkout_end_time',
       };
 
       final invalidFields = profileData.keys
@@ -344,9 +342,6 @@ class UserService {
     if (userData.containsKey('checkin_start_time')) {
       editableData['checkin_start_time'] = userData['checkin_start_time'];
     }
-    if (userData.containsKey('checkout_end_time')) {
-      editableData['checkout_end_time'] = userData['checkout_end_time'];
-    }
 
     // El email puede ser editable dependiendo de la configuración del servidor
     if (userData.containsKey('email')) {
@@ -412,15 +407,6 @@ class UserService {
       final timeRegex = RegExp(r'^([01]\d|2[0-3]):([0-5]\d)$');
       if (!timeRegex.hasMatch(userData['checkin_start_time'].toString())) {
         errors['checkin_start_time'] = 'Formato de hora no válido (HH:MM)';
-      }
-    }
-
-    // Validar hora de check-out si está presente
-    if (userData['checkout_end_time'] != null &&
-        userData['checkout_end_time'].toString().isNotEmpty) {
-      final timeRegex = RegExp(r'^([01]\d|2[0-3]):([0-5]\d)$');
-      if (!timeRegex.hasMatch(userData['checkout_end_time'].toString())) {
-        errors['checkout_end_time'] = 'Formato de hora no válido (HH:MM)';
       }
     }
 
