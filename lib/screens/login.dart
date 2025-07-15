@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:presence_management_frontend/services/auth_service.dart';
 import 'package:presence_management_frontend/widgets/fade_animation.dart';
+import 'package:local_auth/local_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscureText = true;
+
+  final LocalAuthentication auth = LocalAuthentication();
 
   void _login() async {
     setState(() {
@@ -36,6 +39,27 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _authenticateWithBiometrics() async {
+    bool authenticated = false;
+    try {
+      authenticated = await auth.authenticate(
+        localizedReason: 'Por favor autentícate para ingresar',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+        ),
+      );
+    } catch (e) {
+      // Handle error if needed
+      print(e);
+    }
+
+    if (authenticated) {
+      // Aquí puedes navegar a la pantalla principal o realizar la acción que desees
+      print('Autenticación biométrica exitosa');
+      // Ejemplo: Navigator.pushReplacementNamed(context, '/home');
     }
   }
 
@@ -182,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         )),
                         SizedBox(height: 30),
                         FadeAnimation(1.5, Text('Continuar el ingreso con', style: TextStyle(color: Colors.black, fontSize: 16),)),
-                          SizedBox(height: 20),
+                        SizedBox(height: 20),
                         FadeAnimation(1.6, Row(
                           children: <Widget> [
                             Expanded(
@@ -216,7 +240,23 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             )
                           ],
-                        ))
+                        )),
+                        SizedBox(height: 20),
+                        FadeAnimation(
+                          1.7,
+                          ElevatedButton.icon(
+                            icon: Icon(Icons.fingerprint, color: Colors.white),
+                            label: Text('Ingresar con biometría', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange[900],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              minimumSize: Size(double.infinity, 50),
+                            ),
+                            onPressed: _authenticateWithBiometrics,
+                          ),
+                        ),
                       ],
                     ),
                   ),
