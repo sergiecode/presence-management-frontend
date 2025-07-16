@@ -97,13 +97,13 @@ class _RegisterPageState extends State<RegisterPage> {
       backgroundColor: Colors.grey[50],
 
       // AppBar con el logo de la empresa
-      appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.grey.withOpacity(0.1),
-        title: const AppLogo.navbar(),
-      ),
+      // appBar: AppBar(
+      //   centerTitle: true,
+      //   backgroundColor: Colors.white,
+      //   elevation: 2,
+      //   shadowColor: Colors.grey.withOpacity(0.1),
+      //   title: const AppLogo.navbar(),
+      // ),
 
       body: Container(
         padding: const EdgeInsets.all(24),
@@ -112,12 +112,12 @@ class _RegisterPageState extends State<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Logo principal de la aplicación (más pequeño que en login)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: AppLogo(width: 100, height: 100),
-                ),
-              ),
+              // const Center(
+              //   child: Padding(
+              //     padding: EdgeInsets.symmetric(vertical: 20),
+              //     child: AppLogo(width: 100, height: 100),
+              //   ),
+              // ),
 
               // Título de la página
               Text(

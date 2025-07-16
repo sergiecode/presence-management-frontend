@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.presence_management_frontend"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    // NDK removido para evitar problemas de configuración
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

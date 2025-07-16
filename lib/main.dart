@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 // Importaciones de la nueva estructura
 import 'data/providers/auth_provider.dart';
+import 'data/providers/todo_provider.dart';
 import 'data/services/notification_service.dart';
 import 'presentation/pages/pages.dart';
 import 'presentation/routes/protected_route.dart';
@@ -17,8 +18,11 @@ void main() async {
   await NotificationService().initialize();
   
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => AuthProvider()),
+        ChangeNotifierProvider(create: (context) => TodoProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -32,9 +36,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        print(
-          'Main.dart Consumer: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}',
-        );
         return MaterialApp(
           title: 'Absti Asistencia',
           debugShowCheckedModeBanner: false,
@@ -43,7 +44,7 @@ class MyApp extends StatelessWidget {
           home: authProvider.isInitialized
               ? (authProvider.isAuthenticated
                     ? ProtectedRoute(
-                        child: HomePage(token: authProvider.token ?? ''),
+                        child: DemoTodoPage(token: authProvider.token ?? ''),
                       )
                     : GuestRoute(child: LoginPage()))
               : Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -51,7 +52,7 @@ class MyApp extends StatelessWidget {
             '/login': (context) => GuestRoute(child: LoginPage()),
             '/register': (context) => GuestRoute(child: RegisterPage()),
             '/home': (context) => ProtectedRoute(
-              child: HomePage(token: context.read<AuthProvider>().token ?? ''),
+              child: DemoTodoPage(token: context.read<AuthProvider>().token ?? ''),
             ),
           },
         );

@@ -18,3 +18,6 @@ export 'home_page.dart';
 export 'profile_page.dart';
 export 'history_page.dart';
 export 'requests_page.dart';
+
+// Página temporal de demo
+export 'demo_todo_page.dart';

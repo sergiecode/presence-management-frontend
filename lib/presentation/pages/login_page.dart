@@ -123,13 +123,13 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.grey[50],
 
       // AppBar con el logo de la empresa
-      appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.grey.withOpacity(0.1),
-        title: const AppLogo.navbar(),
-      ),
+      // appBar: AppBar(
+      //   centerTitle: true,
+      //   backgroundColor: Colors.white,
+      //   elevation: 2,
+      //   shadowColor: Colors.grey.withOpacity(0.1),
+      //   title: const AppLogo.navbar(),
+      // ),
 
       body: Container(
         padding: const EdgeInsets.all(24),
@@ -138,12 +138,12 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Logo principal de la aplicación
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: AppLogo.login(),
-                ),
-              ),
+              // const Center(
+              //   child: Padding(
+              //     padding: EdgeInsets.symmetric(vertical: 20),
+              //     child: AppLogo.login(),
+              //   ),
+              // ),
 
               // Título y subtítulo de bienvenida
               Text(
