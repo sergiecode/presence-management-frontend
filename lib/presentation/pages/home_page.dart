@@ -736,12 +736,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         elevation: 2,
         shadowColor: Colors.grey.withValues(alpha: 0.1),
         centerTitle: true,
-          title: const AppLogo(
-            width: 35,
-            height: 35,
-            imagePath: 'assets/images/logo-navbar.png',
-            showSubtitle: false,
-          ),
+          // title: const AppLogo(
+          //   width: 35,
+          //   height: 35,
+          //   imagePath: 'assets/images/logo-navbar.png',
+          //   showSubtitle: false,
+          // ),
           actions: [
             IconButton(
               icon: const Icon(Icons.menu, color: Color(0xFFE67D21)),
@@ -773,7 +773,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         elevation: 2,
         shadowColor: Colors.grey.withValues(alpha: 0.1),
         centerTitle: true,
-        title: const AppLogo.navbar(),
+        // title: const AppLogo.navbar(),
         actions: [
           // Indicador de conexión
           Container(

@@ -255,7 +255,7 @@ class _ProfilePageState extends State<ProfilePage> {
         elevation: 2,
         shadowColor: Colors.grey.withValues(alpha: 0.1),
         centerTitle: true,
-        title: const AppLogo.navbar(),
+        // title: const AppLogo.navbar(),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFFE67D21)),
           onPressed: () => Navigator.pop(context),

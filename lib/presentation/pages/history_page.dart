@@ -104,7 +104,7 @@ class _HistoryPageState extends State<HistoryPage> {
   /// Construye la barra de navegación superior
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: const AppLogo.navbar(),
+      // title: const AppLogo.navbar(),
       centerTitle: true,
       backgroundColor: Colors.white,
       elevation: 2,
