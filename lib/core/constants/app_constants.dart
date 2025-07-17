@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 class ApiConstants {
   /// URL base de la API del backend
   /// Nota: Para Android, usar 10.0.2.2 en lugar de localhost
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'http://10.0.2.2:8080'; // TODO : Si se quiere probar en android fisico, cambiar por la IP de la máquina
   
   /// URL alternativa en caso de problemas de conexión
   static const String alternativeBaseUrl = 'http://localhost:8080';

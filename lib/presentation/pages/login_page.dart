@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Importaciones de la nueva estructura
 import '../../data/providers/auth_provider.dart';
 import '../atoms/atoms.dart';
 import '../molecules/molecules.dart';
+
+// Importaciones de autenticación
+import 'package:local_auth/local_auth.dart';
 
 /// **PÁGINA: Inicio de Sesión**
 ///
@@ -40,21 +44,143 @@ class _LoginPageState extends State<LoginPage> {
   /// Mensaje de éxito (normalmente viene del registro)
   String? _successMessage;
 
+    /// Controlador para autenticación biométrica
+  final LocalAuthentication auth = LocalAuthentication();
+
+  /// Estado de biometría habilitada
+  bool _biometricEnabled = false;
+
+
   @override
   void initState() {
     super.initState();
     // Verificar si hay un mensaje de éxito desde el registro
     _checkForSuccessMessage();
+    _checkBiometricStatus(); // Verificar el estado de la biometría
   }
+
+    Future<void> _checkBiometricStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isEnabled = prefs.getBool('biometric_login_enabled') ?? false;
+   if (mounted) {
+      setState(() {
+        _biometricEnabled = isEnabled;
+      });
+    }
+
+  } 
+
+    /// Maneja la autenticación biométrica
+   Future<void> _authenticateWithBiometrics() async {
+  print('LoginPage: Iniciando autenticación biométrica...');
+  
+  // Usar el AuthProvider que ya tiene toda la lógica
+  final authProvider = context.read<AuthProvider>();
+  
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
+
+  try {
+     final hasCredentials = await authProvider.hasSavedCredentials();
+    if (!hasCredentials) {
+      setState(() {
+        _errorMessage = 'No hay credenciales guardadas. Inicia sesión manualmente.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final success = await authProvider.authenticateWithBiometrics();
+
+    if (success && mounted) {
+      print('LoginPage: Autenticación biométrica exitosa, navegando a home...');
+      Navigator.pushReplacementNamed(context, '/home');
+    } else if (mounted) {
+      print('LoginPage: Autenticación biométrica fallida.');
+      setState(() {
+        _errorMessage = authProvider.error ?? 'Error en la autenticación biométrica';
+      });
+    }
+  } catch (e) {
+    print('LoginPage: Error durante autenticación biométrica: $e');
+    if (mounted) {
+      setState(() {
+        _errorMessage = 'Error en la autenticación biométrica';
+      });
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
+
+    /// Muestra el diálogo para activar la biometría después del login exitoso
+  Future<void> _showBiometricActivationDialog() async {
+  // Verificar si el dispositivo soporta biometría
+  final canCheckBiometrics = await auth.canCheckBiometrics;
+  
+  // Solo mostrar el diálogo si:
+  // 1. El dispositivo soporta biometría
+  // 2. La biometría no está habilitada aún
+  // 3. El widget está montado
+  if (canCheckBiometrics && !_biometricEnabled && mounted) {
+    print('LoginPage: Mostrando diálogo de activación biométrica...');
+    
+    final activate = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Activar Ingreso Biométrico'),
+        content: const Text(
+            '¿Deseas usar tu huella o rostro para ingresar la próxima vez?'),
+        actions: [
+          TextButton(
+            child: const Text('No, gracias'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: const Text('Sí, activar'),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    // Verificar mounted después del diálogo
+    if (activate == true && mounted) {
+      print('LoginPage: Usuario activó biometría, guardando configuración...');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('biometric_login_enabled', true);
+      
+      setState(() {
+        _biometricEnabled = true;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Autenticación biométrica activada')),
+      );
+    }
+  } else {
+    print('LoginPage: No se muestra diálogo - canCheckBiometrics: $canCheckBiometrics, _biometricEnabled: $_biometricEnabled');
+  }
+}
 
   /// Verifica si hay un mensaje de éxito pasado desde la navegación
   void _checkForSuccessMessage() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is String) {
-        setState(() {
-          _successMessage = args;
-        });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Verificar mounted antes de setState
+      if (mounted) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args is String) {
+          setState(() {
+            _successMessage = args;
+          });
+        }
       }
     });
   }
@@ -64,7 +190,8 @@ class _LoginPageState extends State<LoginPage> {
     final result = await Navigator.pushNamed(context, '/register');
 
     // Si regresa un string desde el registro, mostrarlo como mensaje de éxito
-    if (result is String) {
+    // Verificar mounted después de la navegación
+    if (result is String && mounted) {
       setState(() {
         _successMessage = result;
       });
@@ -73,48 +200,62 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Maneja el proceso de login
   Future<void> _handleLogin(String email, String password) async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    try {
-      // Usar el AuthProvider para manejar el login
-      final success = await context.read<AuthProvider>().login(email, password);
+  try {
+    // Usar el AuthProvider para manejar el login
+    final authProvider = context.read<AuthProvider>();
+    
+    // ¡IMPORTANTE! Pasar saveBiometrics: true para que guarde las credenciales
+    final success = await authProvider.login(email, password, saveBiometrics: true);
 
-      if (success && mounted) {
-        // Login exitoso - mostrar mensaje de éxito
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Login exitoso')));
+    if (success && mounted) {
+      // Login exitoso - mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login exitoso'))
+      );
 
-        // Navegar a la página principal
+      // Preguntar si quiere activar biometría
+      await _showBiometricActivationDialog();
+
+      // Navegar a la página principal
+      if (mounted) {
         Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        // Login fallido
-        setState(() {
-          _errorMessage = 'Email o contraseña incorrectos';
-        });
       }
-    } catch (e) {
-      // Error durante el login
-      setState(() {
-        _errorMessage = 'Error de conexión. Intenta nuevamente.';
-      });
-    } finally {
+    } else {
+      // Login fallido
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _errorMessage = authProvider.error ?? 'Email o contraseña incorrectos';
         });
       }
     }
+  } catch (e) {
+    // Error durante el login
+    if (mounted) {
+      setState(() {
+        _errorMessage = 'Error de conexión. Intenta nuevamente.';
+      });
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
+}
 
   /// Limpia el mensaje de éxito
   void _clearSuccessMessage() {
-    setState(() {
-      _successMessage = null;
-    });
+     if (mounted) {
+      setState(() {
+        _successMessage = null;
+      });
+    }
   }
 
   @override
@@ -186,10 +327,46 @@ class _LoginPageState extends State<LoginPage> {
                 type: ButtonType.secondary,
                 fullWidth: true,
               ),
+                 // Botón de autenticación biométrica
+              const SizedBox(height: 30),
+              const Center(
+                child: Text(
+                  'Continuar el ingreso con',
+                  style: TextStyle(color: Color(0xFFBDBDBD), fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: GestureDetector(
+                  onTap: _authenticateWithBiometrics,
+                  child: Column(
+                    children: <Widget>[
+                      Image.asset('assets/icons/face_id.png', height: 30, color: Colors.orange,),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Face ID',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
       ),
     );
   }
+    @override
+  void dispose() {
+    // Limpiar cualquier listener o timer aquí si los hubiera
+    super.dispose();
+  }
 }
+
+
