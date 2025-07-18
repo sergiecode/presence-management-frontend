@@ -1,4 +1,4 @@
-/// Componentes de rutas protegidas para la aplicación ABSTI
+/// Componentes de rutas protegidas para la aplicación Tareas
 ///
 /// Este archivo contiene widgets que manejan la protección de rutas
 /// basada en el estado de autenticación del usuario.
@@ -6,7 +6,7 @@
 /// Incluye rutas protegidas (requieren autenticación) y rutas de invitado
 /// (requieren NO estar autenticado).
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 
@@ -95,7 +95,7 @@ class ProtectedRoute extends StatelessWidget {
               ),
               child: const Center(
                 child: Text(
-                  'ABSTI',
+                  'Tareas',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -259,7 +259,7 @@ class GuestRoute extends StatelessWidget {
               ),
               child: const Center(
                 child: Text(
-                  'ABSTI',
+                  'Tareas',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 28,

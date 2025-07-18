@@ -1,4 +1,4 @@
-/// Servicio de gestión de check-ins para la aplicación ABSTI
+/// Servicio de gestión de check-ins para la aplicación Tareas
 ///
 /// Este servicio maneja todas las operaciones relacionadas con el registro
 /// de entrada y salida de los empleados, incluyendo check-in, check-out,
@@ -6,7 +6,7 @@
 ///
 /// Utiliza HTTP para comunicarse con la API del backend.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 
@@ -546,7 +546,7 @@ class CheckInService {
     if (useAlternativeHeaders) {
       headers.addAll({
         'Accept': 'application/json',
-        'User-Agent': 'ABSTI-Flutter-App/1.0',
+        'User-Agent': 'Tareas-Flutter-App/1.0',
         'Connection': 'keep-alive',
       });
     }

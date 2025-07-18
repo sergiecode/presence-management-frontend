@@ -1,10 +1,10 @@
-/// Configuración del tema de la aplicación ABSTI
+/// Configuración del tema de la aplicación Tareas
 ///
 /// Este archivo define todos los estilos visuales de la aplicación,
 /// incluyendo colores, tipografías, botones, campos de texto, etc.
 /// Utiliza las constantes definidas en app_constants.dart
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 
@@ -13,7 +13,7 @@ import '../constants/app_constants.dart';
 
 /// Clase que contiene la configuración completa del tema de la aplicación
 class AppTheme {
-  /// Tema principal de la aplicación con colores corporativos de ABSTI
+  /// Tema principal de la aplicación con colores corporativos de Tareas
   static ThemeData get lightTheme {
     return ThemeData(
       // Configuración del esquema de colores usando Material 3

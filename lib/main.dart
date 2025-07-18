@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return MaterialApp(
-          title: 'Absti Asistencia',
+          title: 'Todo Muestra prueba',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           // Ruta inicial basada en el estado de autenticación

@@ -1,4 +1,4 @@
-/// Servicio de gestión de notificaciones locales para la aplicación ABSTI
+/// Servicio de gestión de notificaciones locales para la aplicación Tareas
 ///
 /// Este servicio maneja todas las operaciones relacionadas con notificaciones
 /// locales, incluyendo configuración inicial, programación de recordatorios
@@ -6,7 +6,7 @@
 ///
 /// Utiliza flutter_local_notifications para mostrar notificaciones.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 

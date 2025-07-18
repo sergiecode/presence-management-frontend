@@ -46,7 +46,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          'Demo TODO App',
+          'Demo Tareas App',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue[600],
@@ -136,25 +136,25 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
                       runSpacing: 4,
                       children: [
                         _buildFeatureChip('Login/Register', Icons.account_circle),
-                        _buildFeatureChip('Crear TODO', Icons.add),
+                        _buildFeatureChip('Crear Tarea', Icons.add),
                         _buildFeatureChip('Descripción manual', Icons.edit_note),
                         _buildFeatureChip('Descripción automática', Icons.auto_awesome),
-                        _buildFeatureChip('Editar TODO', Icons.edit),
-                        _buildFeatureChip('Eliminar TODO', Icons.delete),
+                        _buildFeatureChip('Editar Tarea', Icons.edit),
+                        _buildFeatureChip('Eliminar Tarea', Icons.delete),
                       ],
                     ),
                   ],
                 ),
               ),
 
-              // Botón para crear nuevo TODO
+              // Botón para crear nuevo Tarea
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 child: ElevatedButton.icon(
                   onPressed: () => _showCreateTodoDialog(),
                   icon: const Icon(Icons.add),
-                  label: const Text('Crear Nuevo TODO'),
+                  label: const Text('Crear Nueva Tarea'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[600],
                     foregroundColor: Colors.white,
@@ -210,7 +210,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No hay TODOs aún',
+            'No hay Tareas aún',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -219,7 +219,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Crea tu primer TODO para comenzar',
+            'Crea tu primer Tarea para comenzar',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
@@ -384,7 +384,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Crear Nuevo TODO'),
+        title: const Text('Crear Nueva Tarea'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -392,7 +392,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
               TextField(
                 controller: _titleController,
                 decoration: const InputDecoration(
-                  labelText: 'Título del TODO *',
+                  labelText: 'Título de la Tarea*',
                   border: OutlineInputBorder(),
                 ),
                 autofocus: true,
@@ -466,8 +466,8 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
                 Navigator.pop(context);
                 
                 final message = customDescription != null 
-                    ? 'TODO creado con tu descripción personalizada'
-                    : 'TODO creado con descripción automática';
+                    ? 'Tarea creada con tu descripción personalizada'
+                    : 'Tarea creada con descripción automática';
                     
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -495,7 +495,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Editar TODO'),
+        title: const Text('Editar Tarea'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -503,7 +503,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
               TextField(
                 controller: _editTitleController,
                 decoration: const InputDecoration(
-                  labelText: 'Título del TODO *',
+                  labelText: 'Título de la Tarea *',
                   border: OutlineInputBorder(),
                 ),
                 autofocus: true,
@@ -578,8 +578,8 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
                 Navigator.pop(context);
                 
                 final message = customDescription != null 
-                    ? 'TODO editado con tu descripción'
-                    : 'TODO editado con nueva descripción automática';
+                    ? 'Tarea editada con tu descripción'
+                    : 'Tarea editada con nueva descripción automática';
                     
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -605,7 +605,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar TODO'),
+        title: const Text('Eliminar Tarea'),
         content: Text('¿Estás seguro de que quieres eliminar "${todo.title}"?'),
         actions: [
           TextButton(
@@ -618,7 +618,7 @@ class _DemoTodoPageState extends State<DemoTodoPage> {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('TODO eliminado'),
+                  content: Text('Tarea eliminada'),
                   backgroundColor: Colors.red,
                 ),
               );

@@ -1,9 +1,9 @@
-/// Constantes globales de la aplicación ABSTI
+/// Constantes globales de la aplicación Tareas
 ///
 /// Este archivo contiene todas las constantes que se usan en toda la aplicación,
 /// como URLs de API, colores corporativos, configuraciones, etc.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 
@@ -42,9 +42,9 @@ class ApiConstants {
   static const int timeoutDuration = 30;
 }
 
-/// Colores corporativos de ABSTI
+/// Colores corporativos de Tareas
 class AppColors {
-  /// Color principal de la marca ABSTI (naranja)
+  /// Color principal de la marca Tareas (naranja)
   static const Color primary = Color(0xFFE67D21);
 
   /// Variaciones del color principal
@@ -121,7 +121,7 @@ class AppAnimations {
 /// Configuraciones de la aplicación
 class AppConfig {
   /// Nombre de la aplicación
-  static const String appName = 'ABSTI Asistencia';
+  static const String appName = 'Tareas Asistencia';
 
   /// Versión de la aplicación
   static const String appVersion = '1.0.0';
@@ -303,5 +303,5 @@ class SuccessMessages {
   static const String profileUpdateSuccess = 'Perfil actualizado exitosamente.';
   static const String absenceCreateSuccess =
       'Ausencia registrada exitosamente.';
-  static const String loginSuccess = 'Bienvenido a ABSTI.';
+  static const String loginSuccess = 'Bienvenido a Tareas.';
 }

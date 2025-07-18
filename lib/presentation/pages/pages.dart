@@ -13,11 +13,5 @@ library;
 export 'login_page.dart';
 export 'register_page.dart';
 
-// Páginas principales de la aplicación
-export 'home_page.dart';
-export 'profile_page.dart';
-export 'history_page.dart';
-export 'requests_page.dart';
-
 // Página temporal de demo
 export 'demo_todo_page.dart';

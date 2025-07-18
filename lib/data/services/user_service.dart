@@ -1,4 +1,4 @@
-/// Servicio de gestión de usuarios para la aplicación ABSTI
+/// Servicio de gestión de usuarios para la aplicación Tareas
 ///
 /// Este servicio maneja todas las operaciones relacionadas con usuarios,
 /// incluyendo obtener datos del perfil, actualizar información personal,
@@ -6,7 +6,7 @@
 ///
 /// Utiliza HTTP para comunicarse con la API del backend.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 

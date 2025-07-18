@@ -1,4 +1,4 @@
-/// Proveedor de autenticación para la aplicación ABSTI
+/// Proveedor de autenticación para la aplicación Tareas
 ///
 /// Este proveedor maneja el estado global de autenticación de la aplicación,
 /// incluyendo login, logout, persistencia de tokens y verificación de estado.
@@ -6,7 +6,7 @@
 /// Utiliza ChangeNotifier para notificar cambios de estado a los widgets
 /// que escuchan estos cambios.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 

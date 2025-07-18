@@ -1,11 +1,11 @@
-/// Servicio de autenticación para la aplicación ABSTI
+/// Servicio de autenticación para la aplicación Tareas
 ///
 /// Este servicio maneja todas las operaciones relacionadas con la autenticación
 /// de usuarios, incluyendo login, registro y validación de tokens.
 ///
 /// Utiliza HTTP para comunicarse con la API del backend.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 

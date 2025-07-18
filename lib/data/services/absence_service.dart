@@ -1,4 +1,4 @@
-/// Servicio de gestión de ausencias para la aplicación ABSTI
+/// Servicio de gestión de ausencias para la aplicación Tareas
 ///
 /// Este servicio maneja todas las operaciones relacionadas con las ausencias
 /// y permisos de los empleados, incluyendo crear, consultar, actualizar
@@ -6,7 +6,7 @@
 ///
 /// Utiliza HTTP para comunicarse con la API del backend.
 ///
-/// Autor: Equipo ABSTI
+/// Autor: Equipo Gold
 /// Fecha: 2025
 library;
 
