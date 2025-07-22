@@ -34,38 +34,69 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<Map<String, dynamic>>> getCheckIns(String token) async {
     try {
-      print('CheckInService: Obteniendo check-ins del usuario...');
+      print(
+        'CheckInService: Obteniendo check-ins del usuario (con paginación)...',
+      );
 
-      // Realizar petición GET para obtener todos los check-ins
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl${ApiConstants.checkinsEndpoint}'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
+      final List<Map<String, dynamic>> allCheckIns = [];
+      int currentPage = 1;
+      int totalPages = 1; 
 
-      print('CheckInService: Respuesta: ${response.statusCode}');
+      // Bucle para obtener todas las páginas por su número
+      do {
+        final url = '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
+        print('CheckInService: Obteniendo página: $url');
 
-      // Verificar si la respuesta es exitosa
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        print('CheckInService: ${data.length} check-ins obtenidos');
+        final response = await http
+            .get(
+              Uri.parse(url),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+            )
+            .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-        // Convertir la lista de datos dinámicos a lista de mapas
-        return data
-            .map((item) => _parseCheckInData(item as Map<String, dynamic>))
-            .toList();
-      } else {
-        // Manejar errores de la API
-        final errorMessage = _getErrorMessage(
-          response.statusCode,
-          response.body,
-        );
-        throw Exception(errorMessage);
-      }
+        print('CheckInService: Respuesta: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> pageData = json.decode(response.body);
+
+          // Validar que la respuesta tiene el formato esperado
+          if (pageData['data'] != null &&
+              pageData['data'] is List &&
+              pageData['pagination'] != null &&
+              pageData['pagination'] is Map) {
+            
+            final List<dynamic> results = pageData['data'];
+            allCheckIns.addAll(
+              results.map(
+                (item) => _parseCheckInData(item as Map<String, dynamic>),
+              ),
+            );
+
+            totalPages = pageData['pagination']['total_pages'] ?? 1;
+            
+            currentPage++;
+
+          } else {
+            // Si la respuesta no tiene 'data' o 'pagination', el formato es incorrecto.
+            throw Exception('Formato de respuesta de paginación inesperado. No hay elementos para mostrar".');
+          }
+        } else {
+          // Manejar errores de la API
+          final errorMessage = _getErrorMessage(
+            response.statusCode,
+            response.body,
+          );
+          throw Exception(errorMessage);
+        }
+      } while (currentPage <= totalPages); 
+
+      print(
+        'CheckInService: Total de ${allCheckIns.length} check-ins obtenidos de todas las páginas.',
+      );
+      return allCheckIns;
     } catch (e) {
       print('CheckInService: Error al obtener check-ins: $e');
 
@@ -179,15 +210,16 @@ class CheckInService {
       }
 
       // Validar que tenemos user_id
-      if (!checkInData.containsKey('user_id') || checkInData['user_id'] == null) {
+      if (!checkInData.containsKey('user_id') ||
+          checkInData['user_id'] == null) {
         throw Exception('El ID de usuario es obligatorio para el check-in');
       }
 
       // Construir el body específico que requiere el backend
-      // Basado en el ejemplo del servidor con los campos requeridos: 
+      // Basado en el ejemplo del servidor con los campos requeridos:
       // {
       //   "date": "2025-07-07",
-      //   "time": "2025-07-07T09:01:02-03:00", 
+      //   "time": "2025-07-07T09:01:02-03:00",
       //   "location_type": "home",
       //   "location_detail": "string",
       //   "notes": "string",
@@ -197,65 +229,109 @@ class CheckInService {
       //   "late_reason": "traffic" (opcional, solo si llega tarde)
       // }
       final requestBody = {
-        "date": checkInData['date'].toString(), // YYYY-MM-DD
-        "time": checkInData['time'].toString(), // ISO 8601 timestamp con zona horaria
-        "location_type": checkInData['location_type'] ?? "home",
-        "location_detail": checkInData['location_detail'] ?? "string",
-        "notes": checkInData['notes'] ?? "string",
-        "gps_lat": checkInData['gps_lat'] ?? 0,
-        "gps_long": checkInData['gps_long'] ?? 0,
-        "user_id": checkInData['user_id'], // ID del usuario (requerido)
+        "locations": [
+          {
+            "location_type": checkInData['location_type'] ?? 1,
+            "location_detail":
+                checkInData['location_detail'] ?? "Ubicación no especificada",
+          },
+        ],
+        "notes": checkInData['notes'] ?? "",
+        "time": checkInData['time'].toString(),
+        "user_id": checkInData['user_id'],
       };
 
       // Agregar late_reason solo si está presente (cuando el usuario llega tarde)
-      if (checkInData.containsKey('late_reason') && 
-          checkInData['late_reason'] != null && 
+      if (checkInData.containsKey('late_reason') &&
+          checkInData['late_reason'] != null &&
           checkInData['late_reason'].toString().isNotEmpty) {
         requestBody["late_reason"] = checkInData['late_reason'].toString();
       }
 
       print('CheckInService: Body para enviar: $requestBody');
-      print('CheckInService: JSON string que se enviará: ${json.encode(requestBody)}');
-      
+      print(
+        'CheckInService: JSON string que se enviará: ${json.encode(requestBody)}',
+      );
+
       // Debug detallado de cada campo
       print('CheckInService: === DETALLES DEL BODY ===');
-      print('CheckInService: date = "${requestBody['date']}" (tipo: ${requestBody['date'].runtimeType})');
-      print('CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})');
-      print('CheckInService: location_type = "${requestBody['location_type']}" (tipo: ${requestBody['location_type'].runtimeType})');
-      print('CheckInService: location_detail = "${requestBody['location_detail']}" (tipo: ${requestBody['location_detail'].runtimeType})');
-      print('CheckInService: notes = "${requestBody['notes']}" (tipo: ${requestBody['notes'].runtimeType})');
-      print('CheckInService: gps_lat = ${requestBody['gps_lat']} (tipo: ${requestBody['gps_lat'].runtimeType})');
-      print('CheckInService: gps_long = ${requestBody['gps_long']} (tipo: ${requestBody['gps_long'].runtimeType})');
-      print('CheckInService: user_id = ${requestBody['user_id']} (tipo: ${requestBody['user_id'].runtimeType})');
+      print(
+        'CheckInService: date = "${requestBody['date']}" (tipo: ${requestBody['date'].runtimeType})',
+      );
+      print(
+        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
+      );
+      print(
+        'CheckInService: location_type = "${requestBody['location_type']}" (tipo: ${requestBody['location_type'].runtimeType})',
+      );
+      print(
+        'CheckInService: location_detail = "${requestBody['location_detail']}" (tipo: ${requestBody['location_detail'].runtimeType})',
+      );
+      print(
+        'CheckInService: notes = "${requestBody['notes']}" (tipo: ${requestBody['notes'].runtimeType})',
+      );
+      print(
+        'CheckInService: gps_lat = ${requestBody['gps_lat']} (tipo: ${requestBody['gps_lat'].runtimeType})',
+      );
+      print(
+        'CheckInService: gps_long = ${requestBody['gps_long']} (tipo: ${requestBody['gps_long'].runtimeType})',
+      );
+      print(
+        'CheckInService: user_id = ${requestBody['user_id']} (tipo: ${requestBody['user_id'].runtimeType})',
+      );
       if (requestBody.containsKey('late_reason')) {
-        print('CheckInService: late_reason = "${requestBody['late_reason']}" (tipo: ${requestBody['late_reason'].runtimeType})');
+        print(
+          'CheckInService: late_reason = "${requestBody['late_reason']}" (tipo: ${requestBody['late_reason'].runtimeType})',
+        );
       } else {
         print('CheckInService: late_reason = NO INCLUIDO');
       }
       print('CheckInService: === FIN DETALLES ===');
 
       http.Response response;
-      
+
       // Estrategia 1: Intentar con el endpoint normal
       print('CheckInService: Estrategia 1 - Endpoint normal');
-      response = await _attemptCheckIn(token, requestBody, ApiConstants.checkinsEndpoint);
+      response = await _attemptCheckIn(
+        token,
+        requestBody,
+        ApiConstants.checkinsEndpoint,
+      );
 
       // Estrategia 2: Si obtenemos un 307, intentar con la variante que tiene barra final
       if (response.statusCode == 307) {
         print('CheckInService: Estrategia 2 - Endpoint con barra final');
-        response = await _attemptCheckIn(token, requestBody, ApiConstants.checkinsEndpointWithSlash);
+        response = await _attemptCheckIn(
+          token,
+          requestBody,
+          ApiConstants.checkinsEndpointWithSlash,
+        );
       }
 
       // Estrategia 3: Si seguimos obteniendo 307, intentar con headers alternativos
       if (response.statusCode == 307) {
-        print('CheckInService: Estrategia 3 - Headers alternativos en endpoint normal');
-        response = await _attemptCheckIn(token, requestBody, ApiConstants.checkinsEndpoint, useAlternativeHeaders: true);
+        print(
+          'CheckInService: Estrategia 3 - Headers alternativos en endpoint normal',
+        );
+        response = await _attemptCheckIn(
+          token,
+          requestBody,
+          ApiConstants.checkinsEndpoint,
+          useAlternativeHeaders: true,
+        );
       }
 
       // Estrategia 4: Headers alternativos con barra final
       if (response.statusCode == 307) {
-        print('CheckInService: Estrategia 4 - Headers alternativos con barra final');
-        response = await _attemptCheckIn(token, requestBody, ApiConstants.checkinsEndpointWithSlash, useAlternativeHeaders: true);
+        print(
+          'CheckInService: Estrategia 4 - Headers alternativos con barra final',
+        );
+        response = await _attemptCheckIn(
+          token,
+          requestBody,
+          ApiConstants.checkinsEndpointWithSlash,
+          useAlternativeHeaders: true,
+        );
       }
 
       print('CheckInService: Respuesta check-in: ${response.statusCode}');
@@ -268,11 +344,16 @@ class CheckInService {
         return _parseCheckInData(data);
       } else if (response.statusCode == 307) {
         // Si seguimos obteniendo 307 después de todas las estrategias
-        print('CheckInService: Error 307 persistente después de todas las estrategias');
+        print(
+          'CheckInService: Error 307 persistente después de todas las estrategias',
+        );
         final location = response.headers['location'];
-        String errorMessage = 'Error del servidor (307): No se pudo realizar el check-in.';
+        String errorMessage =
+            'Error del servidor (307): No se pudo realizar el check-in.';
         if (location != null) {
-          print('CheckInService: Ubicación sugerida por el servidor: $location');
+          print(
+            'CheckInService: Ubicación sugerida por el servidor: $location',
+          );
           errorMessage += ' El servidor sugiere usar: $location';
         }
         errorMessage += ' Contacte al administrador del sistema.';
@@ -370,18 +451,38 @@ class CheckInService {
   /// Retorna:
   /// - [Map<String, dynamic>]: Datos del check-in normalizados
   static Map<String, dynamic> _parseCheckInData(Map<String, dynamic> data) {
+    dynamic locationType = '';
+    String locationDetail = '';
+
+    if (data['locations'] != null &&
+        data['locations'] is List &&
+        (data['locations'] as List).isNotEmpty) {
+      final firstLocation = (data['locations'] as List)[0];
+      if (firstLocation is Map<String, dynamic>) {
+        // Parsear location_type como int si es posible
+        final locationTypeRaw = firstLocation['location_type'];
+        if (locationTypeRaw is int) {
+          locationType = locationTypeRaw;
+        } else if (locationTypeRaw is String) {
+          locationType =
+              int.tryParse(locationTypeRaw) ??
+              1; // Default a 1 si no se puede parsear
+        } else {
+          locationType = 1; // Default
+        }
+        locationDetail = firstLocation['location_detail']?.toString() ?? '';
+      }
+    }
+
     return {
       'id': data['id'] ?? 0,
       'user_id': data['user_id'] ?? 0,
       'date': data['date'] ?? '',
-      'time':
-          data['time'] ??
-          data['check_in_time'] ??
-          '', // Mantener campo original
+      'time': data['time'] ?? data['check_in_time'] ?? '',
       'check_in_time': data['check_in_time'] ?? data['time'] ?? '',
       'check_out_time': data['check_out_time'] ?? data['checkout_time'],
-      'location_type': data['location_type'] ?? '',
-      'location_detail': data['location_detail'] ?? '',
+      'location_type': locationType, // Ahora será int
+      'location_detail': locationDetail,
       'gps_lat': data['gps_lat'] ?? 0.0,
       'gps_long': data['gps_long'] ?? 0.0,
       'notes': data['notes'] ?? '',
@@ -403,6 +504,7 @@ class CheckInService {
   static String _getErrorMessage(int statusCode, String responseBody) {
     switch (statusCode) {
       case 400:
+        print('$responseBody');
         return 'Datos de check-in inválidos. Verifique la información.';
       case 401:
         return ErrorMessages.sessionExpired;
@@ -533,15 +635,17 @@ class CheckInService {
     bool useAlternativeHeaders = false,
   }) async {
     print('CheckInService: Intentando check-in en endpoint: $endpoint');
-    print('CheckInService: Usando headers alternativos: $useAlternativeHeaders');
+    print(
+      'CheckInService: Usando headers alternativos: $useAlternativeHeaders',
+    );
     print('CheckInService: Body completo: ${json.encode(requestBody)}');
-    
+
     // Headers básicos
     final headers = <String, String>{
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     };
-    
+
     // Si usamos headers alternativos, agregar más headers que podrían ayudar
     if (useAlternativeHeaders) {
       headers.addAll({
@@ -550,18 +654,14 @@ class CheckInService {
         'Connection': 'keep-alive',
       });
     }
-    
+
     print('CheckInService: Headers que se enviarán: $headers');
     final jsonBody = json.encode(requestBody);
     print('CheckInService: JSON body final: $jsonBody');
     print('CheckInService: Longitud del body: ${jsonBody.length} bytes');
-    
+
     return await http
-        .post(
-          Uri.parse('$baseUrl$endpoint'),
-          headers: headers,
-          body: jsonBody,
-        )
+        .post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: jsonBody)
         .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
   }
 }

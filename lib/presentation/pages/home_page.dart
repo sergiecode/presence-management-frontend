@@ -51,12 +51,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _workTimer;
 
   // Configuración de ubicación
-  String _selectedLocation = 'office';
-  final Map<String, String> _locations = {
-    'office': 'Oficina',
-    'home': 'Domicilio',
-    'client': 'Cliente',
-    'other': 'Otro',
+  int _selectedLocation = 1; // Cambiar de String a int
+  final Map<int, String> _locations = {
+    1: 'Oficina',
+    2: 'Domicilio',
+    3: 'Cliente',
+    4: 'Otro',
   };
 
   // Datos de la sesión
@@ -197,7 +197,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 );
               }
 
-              _selectedLocation = checkIn['location_type'] ?? 'office';
+              _selectedLocation = checkIn['location_type'] ?? 1;
 
               // Iniciar timer para mostrar duración actual
               _startWorkTimer();
@@ -560,7 +560,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// Cambia la ubicación seleccionada
-  void _onLocationChanged(String newLocation) {
+  void _onLocationChanged(int newLocation) {
     setState(() {
       _selectedLocation = newLocation;
     });
