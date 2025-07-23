@@ -31,10 +31,10 @@ class WorkStatusPanel extends StatelessWidget {
   final Duration totalDayTime;
 
   /// Ubicación seleccionada para trabajar
-  final String selectedLocation;
+  final int selectedLocation;
 
   /// Mapa de ubicaciones disponibles
-  final Map<String, String> locations;
+  final Map<int, String> locations;
 
   /// Si una operación está en progreso (para mostrar loading)
   final bool isProcessing;
@@ -49,7 +49,7 @@ class WorkStatusPanel extends StatelessWidget {
   final VoidCallback onStopWork;
 
   /// Función que se ejecuta al cambiar ubicación
-  final Function(String) onLocationChanged;
+  final Function(int) onLocationChanged;
 
   const WorkStatusPanel({
     super.key,
@@ -262,7 +262,7 @@ class WorkStatusPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<int>(
                 value: selectedLocation,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
@@ -272,14 +272,14 @@ class WorkStatusPanel extends StatelessWidget {
                   ),
                 ),
                 items: locations.entries.map((entry) {
-                  return DropdownMenuItem<String>(
+                  return DropdownMenuItem<int>(
                     value: entry.key,
                     child: Text(entry.value),
                   );
                 }).toList(),
                 onChanged: isProcessing
                     ? null
-                    : (String? newValue) {
+                    : (int? newValue) {
                         if (newValue != null) {
                           onLocationChanged(newValue);
                         }
