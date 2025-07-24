@@ -31,7 +31,7 @@ class WorkStatusPanel extends StatelessWidget {
   final Duration totalDayTime;
 
   /// Ubicación seleccionada para trabajar
-  final int selectedLocation;
+  final List<int> selectedLocations;
 
   /// Mapa de ubicaciones disponibles
   final Map<int, String> locations;
@@ -49,7 +49,10 @@ class WorkStatusPanel extends StatelessWidget {
   final VoidCallback onStopWork;
 
   /// Función que se ejecuta al cambiar ubicación
-  final Function(int) onLocationChanged;
+  final Function(int, bool) onLocationToggled;
+
+  final String? otherLocationDetail;
+  final Function(String)? onOtherLocationChanged;
 
   const WorkStatusPanel({
     super.key,
@@ -57,13 +60,15 @@ class WorkStatusPanel extends StatelessWidget {
     this.workStartTime,
     required this.workDuration,
     required this.totalDayTime,
-    required this.selectedLocation,
+    required this.selectedLocations,
     required this.locations,
     this.isProcessing = false,
     this.dayCompleted = false,
     required this.onStartWork,
     required this.onStopWork,
-    required this.onLocationChanged,
+    required this.onLocationToggled,
+    this.otherLocationDetail,
+    this.onOtherLocationChanged,
   });
 
   /// Formatea una duración como "HH:MM:SS"
@@ -250,7 +255,7 @@ class WorkStatusPanel extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Selector de ubicación (solo cuando no está trabajando)
-            if (!isWorking) ...[
+             if (!isWorking) ...[
               Row(
                 children: [
                   const Icon(Icons.location_on, color: Color(0xFFE67D21)),
@@ -262,29 +267,53 @@ class WorkStatusPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                value: selectedLocation,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                items: locations.entries.map((entry) {
-                  return DropdownMenuItem<int>(
-                    value: entry.key,
-                    child: Text(entry.value),
-                  );
-                }).toList(),
-                onChanged: isProcessing
-                    ? null
-                    : (int? newValue) {
-                        if (newValue != null) {
-                          onLocationChanged(newValue);
-                        }
-                      },
+                child: ExpansionTile(
+                  title: Text(
+                    selectedLocations.isEmpty 
+                        ? 'Seleccionar ubicaciones'
+                        : selectedLocations.map((key) => locations[key] ?? '').join(', '),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: selectedLocations.isEmpty ? Colors.grey.shade600 : Colors.black87,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.arrow_drop_down),
+                  children: [
+                    ...locations.entries.map((entry) {
+                      final isSelected = selectedLocations.contains(entry.key);
+                      return CheckboxListTile(
+                        title: Text(entry.value),
+                        value: isSelected,
+                        onChanged: isProcessing
+                            ? null
+                            : (bool? value) {
+                                onLocationToggled(entry.key, value ?? false);
+                              },
+                        activeColor: const Color(0xFFE67D21),
+                        controlAffinity: ListTileControlAffinity.leading,
+                      );
+                    }),
+                  ],
+                ),
               ),
+              // Mostrar input si "Otro" está seleccionado
+              if (selectedLocations.contains(4)) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  enabled: !isProcessing,
+                  decoration: const InputDecoration(
+                    labelText: 'Especificar dirección',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: onOtherLocationChanged,
+                  controller: TextEditingController(text: otherLocationDetail ?? ''),
+                ),
+              ],
               const SizedBox(height: 20),
             ],
 
@@ -298,11 +327,18 @@ class WorkStatusPanel extends StatelessWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Trabajando desde: ${locations[selectedLocation]}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey,
+                  Expanded(
+                    child: Text(
+                      'Trabajando desde: ${selectedLocations.map((key) {
+                        if (key == 4 && (otherLocationDetail?.isNotEmpty ?? false)) {
+                          return otherLocationDetail!;
+                        }
+                        return locations[key] ?? '';
+                      }).where((s) => s.isNotEmpty).join(', ')}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                 ],

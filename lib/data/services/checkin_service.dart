@@ -40,11 +40,12 @@ class CheckInService {
 
       final List<Map<String, dynamic>> allCheckIns = [];
       int currentPage = 1;
-      int totalPages = 1; 
+      int totalPages = 1;
 
       // Bucle para obtener todas las páginas por su número
       do {
-        final url = '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
+        final url =
+            '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
         print('CheckInService: Obteniendo página: $url');
 
         final response = await http
@@ -67,7 +68,6 @@ class CheckInService {
               pageData['data'] is List &&
               pageData['pagination'] != null &&
               pageData['pagination'] is Map) {
-            
             final List<dynamic> results = pageData['data'];
             allCheckIns.addAll(
               results.map(
@@ -76,12 +76,13 @@ class CheckInService {
             );
 
             totalPages = pageData['pagination']['total_pages'] ?? 1;
-            
-            currentPage++;
 
+            currentPage++;
           } else {
             // Si la respuesta no tiene 'data' o 'pagination', el formato es incorrecto.
-            throw Exception('Formato de respuesta de paginación inesperado. No hay elementos para mostrar".');
+            throw Exception(
+              'Formato de respuesta de paginación inesperado. No hay elementos para mostrar".',
+            );
           }
         } else {
           // Manejar errores de la API
@@ -91,7 +92,7 @@ class CheckInService {
           );
           throw Exception(errorMessage);
         }
-      } while (currentPage <= totalPages); 
+      } while (currentPage <= totalPages);
 
       print(
         'CheckInService: Total de ${allCheckIns.length} check-ins obtenidos de todas las páginas.',
@@ -228,14 +229,8 @@ class CheckInService {
       //   "user_id": 123,
       //   "late_reason": "traffic" (opcional, solo si llega tarde)
       // }
-      final requestBody = {
-        "locations": [
-          {
-            "location_type": checkInData['location_type'] ?? 1,
-            "location_detail":
-                checkInData['location_detail'] ?? "Ubicación no especificada",
-          },
-        ],
+         final requestBody = {
+        "locations": checkInData['locations'],
         "notes": checkInData['notes'] ?? "",
         "time": checkInData['time'].toString(),
         "user_id": checkInData['user_id'],
@@ -256,25 +251,23 @@ class CheckInService {
       // Debug detallado de cada campo
       print('CheckInService: === DETALLES DEL BODY ===');
       print(
-        'CheckInService: date = "${requestBody['date']}" (tipo: ${requestBody['date'].runtimeType})',
+        'CheckInService: locations = ${requestBody['locations']} (tipo: ${requestBody['locations'].runtimeType})',
       );
-      print(
-        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
-      );
-      print(
-        'CheckInService: location_type = "${requestBody['location_type']}" (tipo: ${requestBody['location_type'].runtimeType})',
-      );
-      print(
-        'CheckInService: location_detail = "${requestBody['location_detail']}" (tipo: ${requestBody['location_detail'].runtimeType})',
-      );
+      if (requestBody['locations'] is List &&
+          (requestBody['locations'] as List).isNotEmpty) {
+        final firstLocation = (requestBody['locations'] as List)[0];
+        print(
+          'CheckInService: location_type = ${firstLocation['location_type']} (tipo: ${firstLocation['location_type'].runtimeType})',
+        );
+        print(
+          'CheckInService: location_detail = "${firstLocation['location_detail']}" (tipo: ${firstLocation['location_detail'].runtimeType})',
+        );
+      }
       print(
         'CheckInService: notes = "${requestBody['notes']}" (tipo: ${requestBody['notes'].runtimeType})',
       );
       print(
-        'CheckInService: gps_lat = ${requestBody['gps_lat']} (tipo: ${requestBody['gps_lat'].runtimeType})',
-      );
-      print(
-        'CheckInService: gps_long = ${requestBody['gps_long']} (tipo: ${requestBody['gps_long'].runtimeType})',
+        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
       );
       print(
         'CheckInService: user_id = ${requestBody['user_id']} (tipo: ${requestBody['user_id'].runtimeType})',

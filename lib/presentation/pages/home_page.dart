@@ -59,6 +59,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     4: 'Otro',
   };
 
+  // Lista de ubicaciones seleccionadas (por defecto solo la principal)
+  final List<int> _selectedLocations = [1];
+
+  void _onLocationToggled(int locationKey, bool isSelected) {
+    setState(() {
+      if (isSelected) {
+        if (!_selectedLocations.contains(locationKey)) {
+          _selectedLocations.add(locationKey);
+        }
+      } else {
+        // No permitir deseleccionar la última ubicación
+        if (_selectedLocations.length > 1) {
+          _selectedLocations.remove(locationKey);
+        }
+      }
+    });
+  }
+
   // Datos de la sesión
   Map<String, dynamic>? _todayCheckIn;
   final List<Map<String, dynamic>> _workHistory = [];
@@ -344,16 +362,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final currentMinutes = currentTime.hour * 60 + currentTime.minute;
           final isLate = currentMinutes > startMinutes;
 
-          // Los datos básicos para el check-in
+           // Crear la lista de ubicaciones para enviar al backend
+          final locationsData = _selectedLocations.map((locationId) {
+            return {
+              'location_type': locationId,
+              'location_detail': _locations[locationId] ?? 'Otro',
+            };
+          }).toList();
+
+          // Los datos para el check-in
           final checkInData = {
-            'date': date, // YYYY-MM-DD
-            'time': time, // ISO 8601 timestamp
-            'location_type': _selectedLocation,
-            'location_detail': _locations[_selectedLocation],
-            'gps_lat': 0.0, // TODO: Obtener GPS real
+            'date': date,
+            'time': time,
+            'locations': locationsData, // Enviar la lista de ubicaciones
+            'gps_lat': 0.0,
             'gps_long': 0.0,
             'notes': '',
-            'user_id': userId, // ID del usuario (requerido)
+            'user_id': userId,
           };
 
           // Si llega tarde, agregar la razón
@@ -559,12 +584,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return totalTime;
   }
 
-  /// Cambia la ubicación seleccionada
+/*   /// Cambia la ubicación seleccionada
   void _onLocationChanged(int newLocation) {
     setState(() {
       _selectedLocation = newLocation;
     });
-  }
+  } */
 
   /// Muestra el menú de navegación
   void _showMenu() {
@@ -821,13 +846,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 workStartTime: _workStartTime,
                 workDuration: _workDuration,
                 totalDayTime: _getTodayWorkTime(),
-                selectedLocation: _selectedLocation,
+                selectedLocations: _selectedLocations,
                 locations: _locations,
                 isProcessing: _isProcessing,
                 dayCompleted: _dayCompleted,
                 onStartWork: _startWork,
                 onStopWork: _stopWork,
-                onLocationChanged: _onLocationChanged,
+                onLocationToggled: _onLocationToggled,
               ),
 
               // Aquí se podrían agregar más organismos como:
