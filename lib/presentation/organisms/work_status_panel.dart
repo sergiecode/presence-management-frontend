@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../atoms/atoms.dart';
+import '../molecules/molecules.dart';
 
 /// **ORGANISMO: Panel de Estado de Trabajo**
 ///
@@ -54,6 +55,12 @@ class WorkStatusPanel extends StatelessWidget {
   final String? otherLocationDetail;
   final Function(String)? onOtherLocationChanged;
 
+  // Nuevos campos para dirección completa
+  final String? otherLocationFloor;
+  final String? otherLocationApartment;
+  final Function(String)? onOtherLocationFloorChanged;
+  final Function(String)? onOtherLocationApartmentChanged;
+
   const WorkStatusPanel({
     super.key,
     required this.isWorking,
@@ -69,6 +76,10 @@ class WorkStatusPanel extends StatelessWidget {
     required this.onLocationToggled,
     this.otherLocationDetail,
     this.onOtherLocationChanged,
+    this.otherLocationFloor,
+    this.otherLocationApartment,
+    this.onOtherLocationFloorChanged,
+    this.onOtherLocationApartmentChanged,
   });
 
   /// Formatea una duración como "HH:MM:SS"
@@ -77,6 +88,28 @@ class WorkStatusPanel extends StatelessWidget {
     String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  /// Construye el texto de ubicación completo incluyendo piso y departamento
+  String _buildLocationText() {
+    return selectedLocations.map((key) {
+      if (key == 4 && (otherLocationDetail?.isNotEmpty ?? false)) {
+        String locationText = otherLocationDetail!;
+        
+        // Agregar piso si está disponible
+        if (otherLocationFloor?.isNotEmpty ?? false) {
+          locationText += ', Piso ${otherLocationFloor!}';
+        }
+        
+        // Agregar departamento si está disponible
+        if (otherLocationApartment?.isNotEmpty ?? false) {
+          locationText += ', Dpto ${otherLocationApartment!}';
+        }
+        
+        return locationText;
+      }
+      return locations[key] ?? '';
+    }).where((s) => s.isNotEmpty).join(', ');
   }
 
   @override
@@ -304,14 +337,41 @@ class WorkStatusPanel extends StatelessWidget {
               // Mostrar input si "Otro" está seleccionado
               if (selectedLocations.contains(4)) ...[
                 const SizedBox(height: 12),
-                TextField(
+                AddressSearchField(
                   enabled: !isProcessing,
-                  decoration: const InputDecoration(
-                    labelText: 'Especificar dirección',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: onOtherLocationChanged,
-                  controller: TextEditingController(text: otherLocationDetail ?? ''),
+                  onAddressSelected: onOtherLocationChanged,
+                  initialValue: otherLocationDetail,
+                ),
+                const SizedBox(height: 12),
+                // Campos adicionales para piso y departamento
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        enabled: !isProcessing,
+                        decoration: const InputDecoration(
+                          labelText: 'Piso (opcional)',
+                          border: OutlineInputBorder(),
+                          hintText: 'Ej: 3°',
+                        ),
+                        onChanged: onOtherLocationFloorChanged,
+                        controller: TextEditingController(text: otherLocationFloor ?? ''),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        enabled: !isProcessing,
+                        decoration: const InputDecoration(
+                          labelText: 'Dpto (opcional)',
+                          border: OutlineInputBorder(),
+                          hintText: 'Ej: A, 201',
+                        ),
+                        onChanged: onOtherLocationApartmentChanged,
+                        controller: TextEditingController(text: otherLocationApartment ?? ''),
+                      ),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 20),
@@ -329,12 +389,7 @@ class WorkStatusPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Trabajando desde: ${selectedLocations.map((key) {
-                        if (key == 4 && (otherLocationDetail?.isNotEmpty ?? false)) {
-                          return otherLocationDetail!;
-                        }
-                        return locations[key] ?? '';
-                      }).where((s) => s.isNotEmpty).join(', ')}',
+                      'Trabajando desde: ${_buildLocationText()}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Colors.grey,

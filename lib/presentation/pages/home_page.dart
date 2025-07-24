@@ -62,6 +62,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Lista de ubicaciones seleccionadas (por defecto solo la principal)
   final List<int> _selectedLocations = [1];
 
+  // Campos adicionales para "Otro"
+  String? _otherLocationDetail;
+  String? _otherLocationFloor;
+  String? _otherLocationApartment;
+
   void _onLocationToggled(int locationKey, bool isSelected) {
     setState(() {
       if (isSelected) {
@@ -73,7 +78,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (_selectedLocations.length > 1) {
           _selectedLocations.remove(locationKey);
         }
+        
+        // Si se deselecciona "Otro", limpiar sus campos
+        if (locationKey == 4) {
+          _otherLocationDetail = null;
+          _otherLocationFloor = null;
+          _otherLocationApartment = null;
+        }
       }
+    });
+  }
+
+  void _onOtherLocationChanged(String value) {
+    setState(() {
+      _otherLocationDetail = value;
+    });
+  }
+
+  void _onOtherLocationFloorChanged(String value) {
+    setState(() {
+      _otherLocationFloor = value;
+    });
+  }
+
+  void _onOtherLocationApartmentChanged(String value) {
+    setState(() {
+      _otherLocationApartment = value;
     });
   }
 
@@ -364,9 +394,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
            // Crear la lista de ubicaciones para enviar al backend
           final locationsData = _selectedLocations.map((locationId) {
+            String locationDetail = _locations[locationId] ?? 'Otro';
+            
+            // Si es "Otro", construir la dirección completa
+            if (locationId == 4 && _otherLocationDetail != null) {
+              locationDetail = _otherLocationDetail!;
+              
+              // Agregar piso si está disponible
+              if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
+                locationDetail += ', Piso $_otherLocationFloor';
+              }
+              
+              // Agregar departamento si está disponible
+              if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
+                locationDetail += ', Dpto $_otherLocationApartment';
+              }
+            }
+            
             return {
               'location_type': locationId,
-              'location_detail': _locations[locationId] ?? 'Otro',
+              'location_detail': locationDetail,
             };
           }).toList();
 
@@ -853,6 +900,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onStartWork: _startWork,
                 onStopWork: _stopWork,
                 onLocationToggled: _onLocationToggled,
+                otherLocationDetail: _otherLocationDetail,
+                onOtherLocationChanged: _onOtherLocationChanged,
+                otherLocationFloor: _otherLocationFloor,
+                otherLocationApartment: _otherLocationApartment,
+                onOtherLocationFloorChanged: _onOtherLocationFloorChanged,
+                onOtherLocationApartmentChanged: _onOtherLocationApartmentChanged,
               ),
 
               // Aquí se podrían agregar más organismos como:

@@ -17,6 +17,9 @@ export 'register_form.dart';
 export 'work_confirmation_dialogs.dart';
 export 'new_absence_dialog.dart';
 
+// Campos de búsqueda especializados
+export 'address_search_field.dart';
+
 // Formularios de información personal
 export 'personal_info_form.dart';
 export 'user_settings_panel.dart';
