@@ -106,9 +106,18 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
         // Mostrar error discreto
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al buscar direcciones: $e'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: Colors.orange,
+            content: Text('Buscando direcciones sin conexión: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.orange.shade600,
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: () {
+                if (_controller.text.trim().isNotEmpty) {
+                  _searchAddresses(_controller.text.trim());
+                }
+              },
+            ),
           ),
         );
       }
@@ -189,16 +198,27 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
               itemBuilder: (context, index) {
                 final suggestion = _suggestions[index];
                 final displayName = suggestion['display_name'] ?? suggestion['formatted'] ?? 'Dirección no disponible';
+                final source = suggestion['source'] ?? 'online';
                 
                 return ListTile(
                   dense: true,
-                  leading: const Icon(Icons.location_on, size: 20),
+                  leading: Icon(
+                    source == 'local' ? Icons.home : Icons.location_on, 
+                    size: 20,
+                    color: source == 'local' ? Colors.orange : Colors.blue,
+                  ),
                   title: Text(
                     displayName,
                     style: const TextStyle(fontSize: 14),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  subtitle: source == 'local' 
+                    ? const Text(
+                        'Sugerencia sin conexión',
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                      )
+                    : null,
                   onTap: () => _onSuggestionSelected(suggestion),
                 );
               },
