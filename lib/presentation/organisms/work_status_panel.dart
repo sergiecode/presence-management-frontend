@@ -291,34 +291,83 @@ class WorkStatusPanel extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            // Tiempo total del día
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE67D21).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total trabajado hoy:',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w500,
-                    ),
+            // Mensaje motivacional durante la jornada o total trabajado al finalizar
+            if (isWorking || dayCompleted)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: dayCompleted 
+                    ? const Color(0xFFE67D21).withValues(alpha: 0.1)
+                    : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: dayCompleted 
+                      ? const Color(0xFFE67D21).withValues(alpha: 0.3)
+                      : Colors.blue.shade200,
                   ),
-                  Text(
-                    _formatDuration(totalDayTime),
-                    style: const TextStyle(
-                      color: Color(0xFFE67D21),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                ),
+                child: dayCompleted 
+                  ? // Mostrar total trabajado cuando la jornada está completada
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              color: const Color(0xFFE67D21),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Total trabajado hoy:',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          _formatDuration(totalDayTime),
+                          style: const TextStyle(
+                            color: Color(0xFFE67D21),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    )
+                  : // Mostrar mensaje motivacional solo cuando está trabajando
+                    Column(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          color: Colors.blue.shade600,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '¡ABSTI te desea una excelente jornada!',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Que tengas un día productivo y exitoso 🚀',
+                          style: TextStyle(
+                            color: Colors.blue.shade600,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
               ),
-            ),
 
             const SizedBox(height: 20),
 
