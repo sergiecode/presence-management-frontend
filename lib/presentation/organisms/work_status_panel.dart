@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../atoms/atoms.dart';
+import '../molecules/molecules.dart';
+import '../../core/constants/location_types.dart';
 
 /// **ORGANISMO: Panel de Estado de Trabajo**
 ///
@@ -30,7 +32,7 @@ class WorkStatusPanel extends StatelessWidget {
   /// Tiempo total trabajado en el día
   final Duration totalDayTime;
 
-  /// Ubicación seleccionada para trabajar
+  /// Ubicación seleccionada para trabajar (selección única)
   final int selectedLocation;
 
   /// Mapa de ubicaciones disponibles
@@ -48,8 +50,23 @@ class WorkStatusPanel extends StatelessWidget {
   /// Función que se ejecuta al terminar trabajo
   final VoidCallback onStopWork;
 
-  /// Función que se ejecuta al cambiar ubicación
+  /// Función que se ejecuta al cambiar ubicación (selección única)
   final Function(int) onLocationChanged;
+
+  final String? otherLocationDetail;
+  final Function(String)? onOtherLocationChanged;
+
+  // Nuevos campos para dirección completa
+  final String? otherLocationFloor;
+  final String? otherLocationApartment;
+  final Function(String)? onOtherLocationFloorChanged;
+  final Function(String)? onOtherLocationApartmentChanged;
+
+  // Campo para el location_detail cuando la jornada está completada
+  final String? completedLocationDetail;
+
+  // Historial de ubicaciones durante la jornada
+  final List<Map<String, dynamic>>? locationHistory;
 
   const WorkStatusPanel({
     super.key,
@@ -64,6 +81,14 @@ class WorkStatusPanel extends StatelessWidget {
     required this.onStartWork,
     required this.onStopWork,
     required this.onLocationChanged,
+    this.otherLocationDetail,
+    this.onOtherLocationChanged,
+    this.otherLocationFloor,
+    this.otherLocationApartment,
+    this.onOtherLocationFloorChanged,
+    this.onOtherLocationApartmentChanged,
+    this.completedLocationDetail,
+    this.locationHistory,
   });
 
   /// Formatea una duración como "HH:MM:SS"
@@ -72,6 +97,54 @@ class WorkStatusPanel extends StatelessWidget {
     String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  /// Formatea timestamp para el historial de ubicaciones
+  String _formatHistoryTime(String timestamp) {
+    try {
+      DateTime dateTime;
+      
+      // Si el timestamp contiene 'T', es un formato ISO completo
+      if (timestamp.contains('T')) {
+        dateTime = DateTime.parse(timestamp);
+      } else {
+        // Si es solo hora (HH:MM:SS), combinar con fecha de hoy
+        final today = DateTime.now();
+        final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+        dateTime = DateTime.parse('$todayStr $timestamp');
+      }
+      
+      // Formatear como HH:MM
+      return "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return timestamp;
+    }
+  }
+
+  /// Construye el texto de ubicación completo incluyendo piso y departamento
+  String _buildLocationText() {
+    // Si la jornada está completada, usar el completedLocationDetail del backend
+    if (dayCompleted && completedLocationDetail != null) {
+      return completedLocationDetail!;
+    }
+    
+    // Si no está completada, usar la lógica normal
+    if (selectedLocation == LocationTypes.REMOTE_ALTERNATIVE && (otherLocationDetail?.isNotEmpty ?? false)) {
+      String locationText = otherLocationDetail!;
+      
+      // Agregar piso si está disponible
+      if (otherLocationFloor?.isNotEmpty ?? false) {
+        locationText += ', Piso ${otherLocationFloor!}';
+      }
+      
+      // Agregar departamento si está disponible
+      if (otherLocationApartment?.isNotEmpty ?? false) {
+        locationText += ', Dpto ${otherLocationApartment!}';
+      }
+      
+      return locationText;
+    }
+    return locations[selectedLocation] ?? '';
   }
 
   @override
@@ -218,39 +291,88 @@ class WorkStatusPanel extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            // Tiempo total del día
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE67D21).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total trabajado hoy:',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w500,
-                    ),
+            // Mensaje motivacional durante la jornada o total trabajado al finalizar
+            if (isWorking || dayCompleted)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: dayCompleted 
+                    ? const Color(0xFFE67D21).withValues(alpha: 0.1)
+                    : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: dayCompleted 
+                      ? const Color(0xFFE67D21).withValues(alpha: 0.3)
+                      : Colors.blue.shade200,
                   ),
-                  Text(
-                    _formatDuration(totalDayTime),
-                    style: const TextStyle(
-                      color: Color(0xFFE67D21),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                ),
+                child: dayCompleted 
+                  ? // Mostrar total trabajado cuando la jornada está completada
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              color: const Color(0xFFE67D21),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Total trabajado hoy:',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          _formatDuration(totalDayTime),
+                          style: const TextStyle(
+                            color: Color(0xFFE67D21),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    )
+                  : // Mostrar mensaje motivacional solo cuando está trabajando
+                    Column(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          color: Colors.blue.shade600,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '¡ABSTI te desea una excelente jornada!',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Que tengas un día productivo y exitoso 🚀',
+                          style: TextStyle(
+                            color: Colors.blue.shade600,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
               ),
-            ),
 
             const SizedBox(height: 20),
 
-            // Selector de ubicación (solo cuando no está trabajando)
-            if (!isWorking) ...[
+            // Selector de ubicación (solo cuando no está trabajando Y no está completado)
+             if (!isWorking && !dayCompleted) ...[
               Row(
                 children: [
                   const Icon(Icons.location_on, color: Color(0xFFE67D21)),
@@ -262,30 +384,261 @@ class WorkStatusPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                value: selectedLocation,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                items: locations.entries.map((entry) {
-                  return DropdownMenuItem<int>(
+              // Radio buttons para selección única de ubicación
+              Column(
+                children: locations.entries.map((entry) {
+                  return RadioListTile<int>(
+                    title: Text(entry.value),
                     value: entry.key,
-                    child: Text(entry.value),
+                    groupValue: selectedLocation,
+                    onChanged: isProcessing
+                        ? null
+                        : (int? value) {
+                            if (value != null) {
+                              onLocationChanged(value);
+                            }
+                          },
+                    activeColor: const Color(0xFFE67D21),
+                    contentPadding: EdgeInsets.zero,
                   );
                 }).toList(),
-                onChanged: isProcessing
-                    ? null
-                    : (int? newValue) {
-                        if (newValue != null) {
-                          onLocationChanged(newValue);
-                        }
-                      },
+              ),
+              // Mostrar input si "Domicilio Alternativo" está seleccionado
+              if (selectedLocation == LocationTypes.REMOTE_ALTERNATIVE) ...[ // REMOTE_ALTERNATIVE (Domicilio Alternativo)
+                const SizedBox(height: 12),
+                AddressSearchField(
+                  enabled: !isProcessing,
+                  onAddressSelected: onOtherLocationChanged,
+                  initialValue: otherLocationDetail,
+                ),
+                const SizedBox(height: 12),
+                // Campos adicionales para piso y departamento
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        enabled: !isProcessing,
+                        decoration: const InputDecoration(
+                          labelText: 'Piso (opcional)',
+                          border: OutlineInputBorder(),
+                          hintText: 'Ej: 3°',
+                        ),
+                        onChanged: onOtherLocationFloorChanged,
+                        controller: TextEditingController(text: otherLocationFloor ?? ''),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        enabled: !isProcessing,
+                        decoration: const InputDecoration(
+                          labelText: 'Dpto (opcional)',
+                          border: OutlineInputBorder(),
+                          hintText: 'Ej: A, 201',
+                        ),
+                        onChanged: onOtherLocationApartmentChanged,
+                        controller: TextEditingController(text: otherLocationApartment ?? ''),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 20),
+            ],
+
+            // Mostrar ubicación final cuando la jornada está completada
+            if (dayCompleted) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      color: Colors.green.shade600,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Jornada finalizada en:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _buildLocationText(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
+
+              // Historial de ubicaciones durante la jornada
+              if (locationHistory != null && locationHistory!.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.timeline,
+                            color: Colors.blue.shade600,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Recorrido durante la jornada:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Timeline de ubicaciones
+                      ...locationHistory!.asMap().entries.map((entry) {
+                        final int index = entry.key;
+                        final Map<String, dynamic> location = entry.value;
+                        final bool isLast = index == locationHistory!.length - 1;
+                        
+                        return Stack(
+                          children: [
+                            // Línea conectora (excepto para el último elemento)
+                            if (!isLast)
+                              Positioned(
+                                left: 5,
+                                top: 20,
+                                child: Container(
+                                  width: 2,
+                                  height: 35,
+                                  color: Colors.blue.shade200,
+                                ),
+                              ),
+                            // Contenido del elemento
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: location['event'] == 'check_in' 
+                                        ? Colors.green.shade600
+                                        : location['event'] == 'check_out'
+                                          ? Colors.red.shade600
+                                          : Colors.orange.shade600,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (location['event'] == 'check_in' 
+                                            ? Colors.green.shade600
+                                            : location['event'] == 'check_out'
+                                              ? Colors.red.shade600
+                                              : Colors.orange.shade600).withAlpha(100),
+                                          blurRadius: 3,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          location['description'] ?? 'Ubicación',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (location['location_detail'] != null && 
+                                            location['location_detail'].toString().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              location['location_detail'],
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      _formatHistoryTime(location['timestamp'] ?? ''),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ],
 
             // Información de ubicación actual (cuando está trabajando)
@@ -298,11 +651,13 @@ class WorkStatusPanel extends StatelessWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Trabajando desde: ${locations[selectedLocation]}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey,
+                  Expanded(
+                    child: Text(
+                      'Trabajando desde: ${_buildLocationText()}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                 ],

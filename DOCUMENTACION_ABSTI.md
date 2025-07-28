@@ -68,7 +68,7 @@ lib/
 #### **Check-in (Entrada)**
 
 - Registro de hora de entrada con timestamp preciso
-- Selección de ubicación de trabajo (Oficina, Domicilio, Cliente, Otro)
+- Selección de ubicación de trabajo (Oficina, Domicilio, Cliente, Domicilio Alternativo)
 - Detección automática de llegadas tardías
 - Validación contra horario configurado del usuario
 - Envío de datos: `user_id`, `date`, `time`, `location_type`, `late_reason`

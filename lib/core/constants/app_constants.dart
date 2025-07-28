@@ -139,7 +139,7 @@ class AppConfig {
     'office': 'Oficina',
     'home': 'Domicilio',
     'client': 'Cliente',
-    'other': 'Otro',
+    'other': 'Domicilio Alternativo',
   };
 
   /// Tipos de ausencia disponibles

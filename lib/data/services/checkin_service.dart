@@ -11,6 +11,8 @@
 library;
 
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../../core/constants/app_constants.dart';
 
@@ -40,11 +42,12 @@ class CheckInService {
 
       final List<Map<String, dynamic>> allCheckIns = [];
       int currentPage = 1;
-      int totalPages = 1; 
+      int totalPages = 1;
 
       // Bucle para obtener todas las páginas por su número
       do {
-        final url = '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
+        final url =
+            '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
         print('CheckInService: Obteniendo página: $url');
 
         final response = await http
@@ -67,7 +70,6 @@ class CheckInService {
               pageData['data'] is List &&
               pageData['pagination'] != null &&
               pageData['pagination'] is Map) {
-            
             final List<dynamic> results = pageData['data'];
             allCheckIns.addAll(
               results.map(
@@ -76,12 +78,13 @@ class CheckInService {
             );
 
             totalPages = pageData['pagination']['total_pages'] ?? 1;
-            
-            currentPage++;
 
+            currentPage++;
           } else {
             // Si la respuesta no tiene 'data' o 'pagination', el formato es incorrecto.
-            throw Exception('Formato de respuesta de paginación inesperado. No hay elementos para mostrar".');
+            throw Exception(
+              'Formato de respuesta de paginación inesperado. No hay elementos para mostrar".',
+            );
           }
         } else {
           // Manejar errores de la API
@@ -91,7 +94,7 @@ class CheckInService {
           );
           throw Exception(errorMessage);
         }
-      } while (currentPage <= totalPages); 
+      } while (currentPage <= totalPages);
 
       print(
         'CheckInService: Total de ${allCheckIns.length} check-ins obtenidos de todas las páginas.',
@@ -228,14 +231,8 @@ class CheckInService {
       //   "user_id": 123,
       //   "late_reason": "traffic" (opcional, solo si llega tarde)
       // }
-      final requestBody = {
-        "locations": [
-          {
-            "location_type": checkInData['location_type'] ?? 1,
-            "location_detail":
-                checkInData['location_detail'] ?? "Ubicación no especificada",
-          },
-        ],
+         final requestBody = {
+        "locations": checkInData['locations'],
         "notes": checkInData['notes'] ?? "",
         "time": checkInData['time'].toString(),
         "user_id": checkInData['user_id'],
@@ -256,25 +253,23 @@ class CheckInService {
       // Debug detallado de cada campo
       print('CheckInService: === DETALLES DEL BODY ===');
       print(
-        'CheckInService: date = "${requestBody['date']}" (tipo: ${requestBody['date'].runtimeType})',
+        'CheckInService: locations = ${requestBody['locations']} (tipo: ${requestBody['locations'].runtimeType})',
       );
-      print(
-        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
-      );
-      print(
-        'CheckInService: location_type = "${requestBody['location_type']}" (tipo: ${requestBody['location_type'].runtimeType})',
-      );
-      print(
-        'CheckInService: location_detail = "${requestBody['location_detail']}" (tipo: ${requestBody['location_detail'].runtimeType})',
-      );
+      if (requestBody['locations'] is List &&
+          (requestBody['locations'] as List).isNotEmpty) {
+        final firstLocation = (requestBody['locations'] as List)[0];
+        print(
+          'CheckInService: location_type = ${firstLocation['location_type']} (tipo: ${firstLocation['location_type'].runtimeType})',
+        );
+        print(
+          'CheckInService: location_detail = "${firstLocation['location_detail']}" (tipo: ${firstLocation['location_detail'].runtimeType})',
+        );
+      }
       print(
         'CheckInService: notes = "${requestBody['notes']}" (tipo: ${requestBody['notes'].runtimeType})',
       );
       print(
-        'CheckInService: gps_lat = ${requestBody['gps_lat']} (tipo: ${requestBody['gps_lat'].runtimeType})',
-      );
-      print(
-        'CheckInService: gps_long = ${requestBody['gps_long']} (tipo: ${requestBody['gps_long'].runtimeType})',
+        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
       );
       print(
         'CheckInService: user_id = ${requestBody['user_id']} (tipo: ${requestBody['user_id'].runtimeType})',
@@ -600,10 +595,26 @@ class CheckInService {
   /// - [dateTime]: Fecha y hora completa a formatear
   ///
   /// Retorna:
-  /// - [String]: Timestamp completo formateado para la API (ISO 8601)
+  /// - [String]: Timestamp completo formateado para la API (RFC3339 UTC)
   static String formatDateTimeForAPI(DateTime dateTime) {
-    // Formatear como ISO 8601 con zona horaria (ej: "2025-07-07T09:01:02-03:00")
-    return dateTime.toIso8601String();
+    // Convertir a UTC y formatear como RFC3339 (ej: "2025-07-24T11:55:59.000Z")
+    final utc = dateTime.toUtc();
+    return '${utc.year}-${utc.month.toString().padLeft(2, '0')}-${utc.day.toString().padLeft(2, '0')}T${utc.hour.toString().padLeft(2, '0')}:${utc.minute.toString().padLeft(2, '0')}:${utc.second.toString().padLeft(2, '0')}.${utc.millisecond.toString().padLeft(3, '0')}Z';
+  }
+
+  /// Formatea DateTime a RFC3339 UTC - Método helper principal
+  ///
+  /// Este es el método que debe usarse para todos los timestamps del backend.
+  /// Formato esperado: 2025-07-24T11:55:59.000Z
+  ///
+  /// Parámetros:
+  /// - [dateTime]: DateTime a formatear
+  ///
+  /// Retorna:
+  /// - [String]: Timestamp RFC3339 UTC
+  static String toRFC3339(DateTime dateTime) {
+    final utc = dateTime.toUtc();
+    return '${utc.year}-${utc.month.toString().padLeft(2, '0')}-${utc.day.toString().padLeft(2, '0')}T${utc.hour.toString().padLeft(2, '0')}:${utc.minute.toString().padLeft(2, '0')}:${utc.second.toString().padLeft(2, '0')}.${utc.millisecond.toString().padLeft(3, '0')}Z';
   }
 
   /// Formatea la hora para la API (HH:MM:SS) - DEPRECATED
@@ -663,5 +674,286 @@ class CheckInService {
     return await http
         .post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: jsonBody)
         .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
+  }
+
+  /// Cambiar ubicación durante la jornada laboral
+  ///
+  /// Este método permite cambiar la ubicación actual del usuario mientras
+  /// está trabajando, sin necesidad de hacer check-out y check-in nuevamente.
+  ///
+  /// NOTA TEMPORAL: Mientras el backend no implemente el endpoint /change-location,
+  /// este método simula el comportamiento para testing del frontend.
+  ///
+  /// Parámetros:
+  /// - [token]: Token de autenticación del usuario
+  /// - [locationData]: Datos de la nueva ubicación
+  ///
+  /// Retorna:
+  /// - [Map<String, dynamic>]: Respuesta del servidor con el resultado
+  ///
+  /// Excepciones:
+  /// - Puede lanzar [Exception] si hay errores de red o del servidor
+  static Future<Map<String, dynamic>?> changeLocationDuringWork(
+    String token,
+    Map<String, dynamic> locationData,
+  ) async {
+    try {
+      print('🔄 CheckInService: Iniciando cambio de ubicación durante trabajo...');
+      print('🔄 CheckInService: Datos de ubicación: $locationData');
+      print('🔄 CheckInService: Token presente: ${token.isNotEmpty}');
+
+      // Usar el endpoint correcto encontrado en el backend: PUT /api/checkins/locations
+      final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations';
+      print('🔄 CheckInService: URL completa: $url');
+
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      // Formatear los datos según el backend: { "locations": [{ ... }] }
+      final requestBody = {
+        'locations': [
+          {
+            'location_type': locationData['location_type'],
+            'location_detail': _buildLocationDetail(locationData),
+          }
+        ]
+      };
+
+      final jsonBody = json.encode(requestBody);
+      print('🔄 CheckInService: Request headers: $headers');
+      print('🔄 CheckInService: Request body: $jsonBody');
+
+      print('📡 CheckInService: Enviando petición PUT...');
+      final response = await http
+          .put(
+            Uri.parse(url),
+            headers: headers,
+            body: jsonBody,
+          )
+          .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
+
+      print('📡 CheckInService: Respuesta recibida');
+      print('📡 CheckInService: Status code: ${response.statusCode}');
+      print('📡 CheckInService: Response headers: ${response.headers}');
+      print('📡 CheckInService: Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = json.decode(response.body);
+          print('✅ CheckInService: Ubicación cambiada exitosamente');
+          return {
+            'success': true,
+            'data': responseData,
+            'message': 'Ubicación cambiada exitosamente',
+          };
+        } catch (e) {
+          print('❌ CheckInService: Error parseando respuesta exitosa: $e');
+          return {
+            'success': true,
+            'message': 'Ubicación cambiada exitosamente (respuesta sin parsear)',
+          };
+        }
+      } else if (response.statusCode == 400) {
+        try {
+          final errorData = json.decode(response.body);
+          print('❌ CheckInService: Error 400 - ${errorData['message']}');
+          return {
+            'success': false,
+            'message': errorData['message'] ?? 'Datos inválidos',
+            'errors': errorData['errors'],
+          };
+        } catch (e) {
+          print('❌ CheckInService: Error 400 - Sin parsear: ${response.body}');
+          return {
+            'success': false,
+            'message': 'Error 400: Datos inválidos',
+          };
+        }
+      } else if (response.statusCode == 401) {
+        print('❌ CheckInService: Error 401 - No autorizado');
+        return {
+          'success': false,
+          'message': 'Sesión expirada. Por favor inicia sesión nuevamente.',
+        };
+      } else if (response.statusCode == 403) {
+        print('❌ CheckInService: Error 403 - Prohibido');
+        return {
+          'success': false,
+          'message': 'No tienes permisos para realizar esta acción.',
+        };
+      } else if (response.statusCode == 404) {
+        print('❌ CheckInService: Error 404 - Endpoint no encontrado');
+        return {
+          'success': false,
+          'message': 'Sesión de trabajo no encontrada.',
+        };
+      } else if (response.statusCode == 500) {
+        print('❌ CheckInService: Error 500 - Error interno del servidor');
+        return {
+          'success': false,
+          'message': 'Error interno del servidor. Inténtalo más tarde.',
+        };
+      } else {
+        print('❌ CheckInService: Error ${response.statusCode} - Respuesta: ${response.body}');
+        return {
+          'success': false,
+          'message': 'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
+        };
+      }
+    } on TimeoutException catch (e) {
+      print('❌ CheckInService: Timeout al cambiar ubicación: $e');
+      return {
+        'success': false,
+        'message': 'Tiempo de espera agotado. Verifica tu conexión e inténtalo nuevamente.',
+      };
+    } on SocketException catch (e) {
+      print('❌ CheckInService: Error de conexión al cambiar ubicación: $e');
+      return {
+        'success': false,
+        'message': 'Error de conexión. Verifica tu conexión a internet.',
+      };
+    } catch (e) {
+      print('❌ CheckInService: Excepción inesperada al cambiar ubicación: $e');
+      return {
+        'success': false,
+        'message': 'Error inesperado: $e',
+      };
+    }
+  }
+
+  /// Construye el location_detail según el tipo de ubicación
+  static String _buildLocationDetail(Map<String, dynamic> locationData) {
+    final locationType = locationData['location_type'];
+    
+    // Si es "Domicilio Alternativo" (LocationTypes.REMOTE_ALTERNATIVE = 2)
+    if (locationType == 2 && locationData['address'] != null) {
+      String detail = locationData['address'];
+      
+      // Agregar piso si está disponible
+      if (locationData['floor'] != null && locationData['floor'].toString().isNotEmpty) {
+        detail += ', Piso ${locationData['floor']}';
+      }
+      
+      // Agregar departamento si está disponible
+      if (locationData['apartment'] != null && locationData['apartment'].toString().isNotEmpty) {
+        detail += ', Dpto ${locationData['apartment']}';
+      }
+      
+      return detail;
+    }
+    
+    // Para otros tipos, usar el nombre del tipo de ubicación según LocationTypes
+    switch (locationType) {
+      case 1: // REMOTE_DECLARED
+        return 'Domicilio';
+      case 2: // REMOTE_ALTERNATIVE  
+        return 'Domicilio Alternativo';
+      case 3: // CLIENT
+        return 'Cliente';
+      case 4: // OFFICE
+        return 'Oficina';
+      default:
+        return 'Ubicación no especificada';
+    }
+  }
+
+  /// Obtener etiqueta de tipo de ubicación desde entero
+  ///
+  /// Convierte un código numérico de tipo de ubicación a su texto legible
+  ///
+  /// Parámetros:
+  /// - [locationType]: Código numérico del tipo de ubicación
+  ///
+  /// Retorna:
+  /// - [String]: Etiqueta legible del tipo de ubicación
+  static String _getLocationTypeLabelFromInt(dynamic locationType) {
+    final int locationTypeInt = locationType is int ? locationType : int.tryParse(locationType?.toString() ?? '') ?? 1;
+    
+    switch (locationTypeInt) {
+      case 1: // REMOTE_DECLARED
+        return 'Domicilio';
+      case 2: // REMOTE_ALTERNATIVE  
+        return 'Domicilio Alternativo';
+      case 3: // CLIENT
+        return 'Cliente';
+      case 4: // OFFICE
+        return 'Oficina';
+      default:
+        return 'Ubicación no especificada';
+    }
+  }
+
+  /// Obtener historial de ubicaciones de la sesión actual de trabajo
+  ///
+  /// NOTA: Por el momento devuelve datos hardcodeados para mostrar 
+  /// cómo funcionaría la línea de tiempo. Será reemplazado por 
+  /// llamada al backend cuando implemente el endpoint específico.
+  ///
+  /// Parámetros:
+  /// - [token]: Token de autenticación del usuario
+  ///
+  /// Retorna:
+  /// - [List<Map<String, dynamic>>]: Lista de ubicaciones con timestamps
+  ///
+  /// Excepciones:
+  /// - Puede lanzar [Exception] si hay errores de red o del servidor
+  static Future<List<Map<String, dynamic>>> getSessionLocationHistory(String token) async {
+    try {
+      print('🔍 CheckInService: Obteniendo historial de ubicaciones (DATOS DEMO)...');
+      
+      // Verificar que hay una sesión activa
+      final todayCheckIn = await getTodayCheckIn(token);
+      if (todayCheckIn == null) {
+        print('🔍 CheckInService: No hay sesión de trabajo activa');
+        return [];
+      }
+
+      // DATOS HARDCODEADOS PARA DEMOSTRACIÓN
+      // TODO: Reemplazar por llamada real al backend cuando esté disponible
+      final List<Map<String, dynamic>> locationHistory = [
+        {
+          'location_type': 1,
+          'location_detail': 'Domicilio',
+          'timestamp': '2025-07-25T08:00:00Z',
+          'event': 'check_in',
+          'description': 'Inicio de jornada en Domicilio',
+        },
+        {
+          'location_type': 4,
+          'location_detail': 'Oficina',
+          'timestamp': '2025-07-25T10:30:00Z',
+          'event': 'location_change',
+          'description': 'Cambio de ubicación a Oficina',
+        },
+        {
+          'location_type': 3,
+          'location_detail': 'Cliente ABC Corp',
+          'timestamp': '2025-07-25T14:00:00Z',
+          'event': 'location_change',
+          'description': 'Cambio de ubicación a Cliente',
+        },
+        {
+          'location_type': 1,
+          'location_detail': 'Domicilio',
+          'timestamp': '2025-07-25T17:30:00Z',
+          'event': 'location_change',
+          'description': 'Cambio de ubicación a Domicilio',
+        },
+      ];
+
+      print('🔍 CheckInService: ✅ Historial demo generado: ${locationHistory.length} entradas');
+      for (int i = 0; i < locationHistory.length; i++) {
+        print('🔍   Entrada $i: ${locationHistory[i]}');
+      }
+      
+      return locationHistory;
+
+    } catch (e) {
+      print('❌ CheckInService: Error obteniendo historial de ubicaciones: $e');
+      print('❌ CheckInService: Stack trace: ${StackTrace.current}');
+      return [];
+    }
   }
 }
