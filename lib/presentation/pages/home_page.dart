@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 // Importaciones de la nueva estructura
 import '../../data/services/checkin_service.dart';
 import '../../data/services/user_service.dart';
+import '../../data/services/notification_service.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../core/constants/location_types.dart';
 import '../atoms/atoms.dart';
@@ -109,13 +110,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isProcessing = false;
   bool _dayCompleted = false;
+  
+  // Servicios
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadTodayCheckIn();
-    // TODO: Configurar notificaciones al inicializar
+    _initializeNotificationService();
   }
 
   @override
@@ -299,14 +303,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       print(
         '_loadTodayCheckIn: Finalizando - _isWorking: $_isWorking, _workStartTime: $_workStartTime, _dayCompleted: $_dayCompleted',
       );
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       
       // Cargar historial de ubicaciones si hay una sesión activa o completada
       if (_isWorking || _dayCompleted) {
         _loadLocationHistory();
       }
+      
+      // Verificar si necesita programar recordatorios de check-in perdido
+      await _checkAndScheduleMissedCheckinReminders();
     }
   }
 
@@ -342,6 +351,97 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Cancela todas las notificaciones de check-in (normales y recordatorios)
+  Future<void> _cancelAllNotifications() async {
+    try {
+      final notificationService = NotificationService();
+      
+      // Cancelar notificación previa al check-in
+      await notificationService.cancelCheckinReminder();
+      
+      // Cancelar recordatorios cada 15 minutos
+      await notificationService.cancelMissedCheckinReminders();
+      
+      print('HomePage: Todas las notificaciones canceladas');
+    } catch (e) {
+      print('HomePage: Error cancelando notificaciones: $e');
+    }
+  }
+
+  /// Programa recordatorios cada 15 minutos después de la hora de check-in perdida
+  Future<void> _scheduleMissedCheckinReminders() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+
+      if (token != null) {
+        // Obtener datos del usuario para conseguir la hora de check-in
+        final userData = await UserService.getCurrentUser(token);
+        if (userData != null && userData['checkin_start_time'] != null) {
+          final checkinTime = userData['checkin_start_time'].toString();
+          final userName = '${userData['name'] ?? ''} ${userData['surname'] ?? ''}'.trim();
+
+          // Programar recordatorios cada 15 minutos
+          final notificationService = NotificationService();
+          await notificationService.scheduleMissedCheckinReminders(
+            checkinTime: checkinTime,
+            userName: userName.isEmpty ? 'Usuario' : userName,
+            maxReminders: 12, // 3 horas de recordatorios
+          );
+
+          print('HomePage: Recordatorios de check-in perdido programados');
+        }
+      }
+    } catch (e) {
+      print('HomePage: Error programando recordatorios de check-in perdido: $e');
+    }
+  }
+
+  /// Verifica si debe programar recordatorios de check-in perdido
+  Future<void> _initializeNotificationService() async {
+    await _notificationService.initialize();
+    // Configurar las notificaciones después de cargar los datos del usuario
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndScheduleMissedCheckinReminders();
+    });
+  }
+
+  Future<void> _checkAndScheduleMissedCheckinReminders() async {
+    try {
+      if (!_isWorking && !_dayCompleted) {
+        // Solo si no está trabajando y no completó el día
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final token = authProvider.token;
+
+        if (token != null) {
+          final userData = await UserService.getCurrentUser(token);
+          if (userData != null && userData['checkin_start_time'] != null) {
+            final checkinTime = userData['checkin_start_time'].toString();
+            
+            // Parsear la hora de check-in
+            final timeParts = checkinTime.split(':');
+            if (timeParts.length >= 2) {
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+              
+              // Crear fecha/hora de check-in de hoy
+              final now = DateTime.now();
+              final checkinDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+              
+              // Si ya pasó la hora de check-in y no está trabajando, programar recordatorios
+              if (now.isAfter(checkinDateTime)) {
+                print('HomePage: Hora de check-in pasada sin registrar entrada - programando recordatorios');
+                await _scheduleMissedCheckinReminders();
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('HomePage: Error verificando recordatorios de check-in perdido: $e');
+    }
+  }
+
   /// Inicia la jornada laboral
   Future<void> _startWork() async {
     if (_isProcessing) return;
@@ -359,9 +459,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     if (confirm == true) {
-      setState(() {
-        _isProcessing = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessing = true;
+        });
+      }
 
       try {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -470,16 +572,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           final result = await CheckInService.checkIn(token, checkInData);
 
-          setState(() {
-            _isWorking = true;
-            _workStartTime = DateTime.now();
-            _workDuration = Duration.zero;
-            _todayCheckIn = result;
-            // Actualizar el completed location detail con la ubicación inicial
-            _completedLocationDetail = locationDetail;
-          });
+          if (mounted) {
+            setState(() {
+              _isWorking = true;
+              _workStartTime = DateTime.now();
+              _workDuration = Duration.zero;
+              _todayCheckIn = result;
+              // Actualizar el completed location detail con la ubicación inicial
+              _completedLocationDetail = locationDetail;
+            });
+          }
 
           _startWorkTimer();
+          
+          // Cancelar todos los recordatorios ya que se hizo check-in
+          await _cancelAllNotifications();
+          
           _showSuccessSnackBar('Jornada iniciada exitosamente');
         }
       } catch (e) {
@@ -487,9 +595,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'Error al iniciar jornada: ${e.toString().replaceAll('Exception: ', '')}',
         );
       } finally {
-        setState(() {
-          _isProcessing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
       }
     }
   }
@@ -509,9 +619,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     if (confirm == true) {
-      setState(() {
-        _isProcessing = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessing = true;
+        });
+      }
 
       try {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -535,30 +647,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           await CheckInService.checkOut(token, checkOutData);
 
-          setState(() {
-            _isWorking = false;
-            _dayCompleted = true; // Marcar día como completado
-            _workStartTime = null;
-            // No resetear _workDuration aquí, _getTodayWorkTime() calculará el tiempo real
+          if (mounted) {
+            setState(() {
+              _isWorking = false;
+              _dayCompleted = true; // Marcar día como completado
+              _workStartTime = null;
+              // No resetear _workDuration aquí, _getTodayWorkTime() calculará el tiempo real
 
-            // Actualizar el check-in con la hora de salida
-            _todayCheckIn = {
-              ..._todayCheckIn!,
-              'checkout_time': CheckInService.toRFC3339(currentTime),
-              'checkout_status':
-                  'completed', // Asegurar que el status esté completado
-            };
-          });
+              // Actualizar el check-in con la hora de salida
+              _todayCheckIn = {
+                ..._todayCheckIn!,
+                'checkout_time': CheckInService.toRFC3339(currentTime),
+                'checkout_status':
+                    'completed', // Asegurar que el status esté completado
+              };
+            });
+          }
 
           _workTimer?.cancel();
           _showSuccessSnackBar('Jornada terminada exitosamente');
 
-          // Verificar estado desde el backend después de 1 segundo
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-              _refreshState();
-            }
-          });
+          // NO hacer refresh automático para evitar pisar la ubicación actual
+          // El usuario ya está viendo la ubicación correcta donde terminó
+          // Future.delayed(const Duration(seconds: 1), () {
+          //   if (mounted) {
+          //     _refreshState();
+          //   }
+          // });
         } else {
           print('_stopWork: ERROR - Token o _todayCheckIn es null');
         }
@@ -566,9 +681,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         print('_stopWork: ERROR: $e');
 
         // Si hay error, revertir estado y re-verificar desde el backend
-        setState(() {
-          _isProcessing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
 
         // Re-cargar estado desde el backend para asegurar consistencia
         await _refreshState();
@@ -578,9 +695,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
         return; // Salir temprano para evitar el finally
       } finally {
-        setState(() {
-          _isProcessing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
       }
     }
   }
@@ -751,9 +870,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() {
-      _isProcessing = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isProcessing = true;
+      });
+    }
 
     try {
       // Obtener token
@@ -802,32 +923,49 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (apartment != null && apartment.isNotEmpty) {
             newLocationDetail += ', Dpto $apartment';
           }
+          print('📍 Nueva ubicación construida para domicilio alternativo: $newLocationDetail');
         } else {
           newLocationDetail = _locations[newLocation] ?? '';
+          print('📍 Nueva ubicación para tipo estándar: $newLocationDetail');
         }
         
         // Actualizar estado local
-        setState(() {
-          _selectedLocation = newLocation;
-          if (newLocation == LocationTypes.REMOTE_ALTERNATIVE) {
-            _otherLocationDetail = address ?? '';
-            _otherLocationFloor = floor ?? '';
-            _otherLocationApartment = apartment ?? '';
-          } else {
-            _otherLocationDetail = '';
-            _otherLocationFloor = '';
-            _otherLocationApartment = '';
-          }
-          
-          // Actualizar también el check-in local con la nueva ubicación
-          if (_todayCheckIn != null) {
-            _todayCheckIn!['location_type'] = newLocation;
-            _todayCheckIn!['location_detail'] = newLocationDetail;
-          }
-          
-          // Actualizar el completed location detail para cuando termine la jornada
-          _completedLocationDetail = newLocationDetail;
-        });
+        if (mounted) {
+          setState(() {
+            print('📍 Actualizando estado local con:');
+            print('   - newLocation: $newLocation');
+            print('   - newLocationDetail: $newLocationDetail');
+            print('   - address: $address');
+            print('   - floor: $floor');
+            print('   - apartment: $apartment');
+            
+            _selectedLocation = newLocation;
+            if (newLocation == LocationTypes.REMOTE_ALTERNATIVE) {
+              _otherLocationDetail = address ?? '';
+              _otherLocationFloor = floor ?? '';
+              _otherLocationApartment = apartment ?? '';
+              print('📍 Estado local de domicilio alternativo actualizado:');
+              print('   - _otherLocationDetail: $_otherLocationDetail');
+              print('   - _otherLocationFloor: $_otherLocationFloor');
+              print('   - _otherLocationApartment: $_otherLocationApartment');
+            } else {
+              _otherLocationDetail = '';
+              _otherLocationFloor = '';
+              _otherLocationApartment = '';
+            }
+            
+            // Actualizar también el check-in local con la nueva ubicación
+            if (_todayCheckIn != null) {
+              _todayCheckIn!['location_type'] = newLocation;
+              _todayCheckIn!['location_detail'] = newLocationDetail;
+              print('📍 Check-in local actualizado: location_type=$newLocation, location_detail=$newLocationDetail');
+            }
+            
+            // Actualizar el completed location detail para cuando termine la jornada
+            _completedLocationDetail = newLocationDetail;
+            print('📍 _completedLocationDetail actualizado: $_completedLocationDetail');
+          });
+        }
 
         // Mostrar mensaje de éxito
         if (mounted) {
@@ -835,9 +973,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _showSuccessSnackBar(message);
         }
 
-        // Refrescar estado y actualizar historial de ubicaciones
-        await _refreshState();
+        // Refrescar historial de ubicaciones (pero NO el estado principal para evitar pisar la dirección)
         await _loadLocationHistory();
+        
+        // Si necesitamos refrescar el estado, hacerlo con un pequeño delay para dar tiempo al backend
+        // Future.delayed(const Duration(seconds: 2), () async {
+        //   await _refreshState();
+        // });
       } else {
         final errorMessage = response?['message'] ?? 'Error desconocido al cambiar ubicación';
         print('❌ Error al cambiar ubicación: $errorMessage');
@@ -874,7 +1016,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: const Color(0xFFE67D21),
+        backgroundColor: const Color.fromARGB(255, 89, 167, 92),
       ),
     );
   }
@@ -908,60 +1050,82 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             '_refreshState: Estado actual antes del cambio - _isWorking: $_isWorking, _dayCompleted: $_dayCompleted',
           );
 
-          setState(() {
-            _todayCheckIn = checkIn;
-
-            // Normalizar los nombres de los campos
-            final checkoutTime =
-                checkIn['checkout_time'] ?? checkIn['check_out_time'];
-            final checkoutStatus = checkIn['checkout_status'];
-
-            // Aplicar la misma lógica que _loadTodayCheckIn pero sin pantalla de carga
-            if (checkoutTime == null) {
-              print(
-                '_refreshState: Usuario sigue trabajando (sin checkout_time)',
-              );
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
-              _completedLocationDetail = checkIn['location_detail'];
-              _isWorking = true;
-              _dayCompleted = false;
-              // No resetear _workStartTime si ya está trabajando
-            } else if (checkoutTime != null && checkoutStatus == 'completed') {
-              print(
-                '_refreshState: Jornada completada (checkout_time + status completed)',
-              );
-              print(
-                '_refreshState: checkoutTime: $checkoutTime, checkoutStatus: $checkoutStatus',
-              );
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
-              _completedLocationDetail = checkIn['location_detail'];
-              _isWorking = false;
-              _dayCompleted = true;
-              _workStartTime = null;
-              _workDuration = Duration.zero;
-              _workTimer?.cancel();
-            } else if (checkoutTime != null) {
-              print(
-                '_refreshState: Checkout con tiempo pero status no completed',
-              );
-              print('_refreshState: checkoutTime: $checkoutTime');
-              print('_refreshState: checkoutStatus: $checkoutStatus');
-              // Si hay checkout_time, asumir que está completado independientemente del status
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
-              _completedLocationDetail = checkIn['location_detail'];
-              _isWorking = false;
-              _dayCompleted = true;
-              _workStartTime = null;
-              _workDuration = Duration.zero;
-              _workTimer?.cancel();
-            } else {
-              print('_refreshState: Caso inesperado');
-              _isWorking = false;
-              _dayCompleted = false;
-              _workStartTime = null;
-              _workDuration = Duration.zero;
+          // Si la jornada está completada, obtener la ubicación real del historial
+          String actualLocationDetail = checkIn['location_detail'];
+          final checkoutTime = checkIn['checkout_time'] ?? checkIn['check_out_time'];
+          final checkoutStatus = checkIn['checkout_status'];
+          
+          // Si la jornada está completada, intentar obtener la ubicación de finalización del historial
+          if (checkoutTime != null && checkoutStatus == 'completed') {
+            print('_refreshState: Jornada completada - obteniendo ubicación real del historial...');
+            try {
+              final locationHistory = await CheckInService.getSessionLocationHistory(token);
+              if (locationHistory.isNotEmpty) {
+                // Buscar la ubicación más reciente (última del día)
+                final lastLocation = locationHistory.last;
+                actualLocationDetail = lastLocation['location_detail'] ?? actualLocationDetail;
+                print('_refreshState: Ubicación de fin de jornada desde historial: $actualLocationDetail');
+              }
+            } catch (e) {
+              print('_refreshState: Error obteniendo historial para ubicación final: $e');
+              // Continuar con la ubicación del check-in si hay error
             }
-          });
+          }
+
+          if (mounted) {
+            setState(() {
+              _todayCheckIn = checkIn;
+
+              // Aplicar la misma lógica que _loadTodayCheckIn pero sin pantalla de carga
+              if (checkoutTime == null) {
+                print(
+                  '_refreshState: Usuario sigue trabajando (sin checkout_time)',
+                );
+                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _completedLocationDetail = actualLocationDetail; // Usar ubicación del historial si está disponible
+                _isWorking = true;
+                _dayCompleted = false;
+                // No resetear _workStartTime si ya está trabajando
+              } else if (checkoutTime != null && checkoutStatus == 'completed') {
+                print(
+                  '_refreshState: Jornada completada (checkout_time + status completed)',
+                );
+                print(
+                  '_refreshState: checkoutTime: $checkoutTime, checkoutStatus: $checkoutStatus',
+                );
+                print(
+                  '_refreshState: Ubicación final determinada: $actualLocationDetail',
+                );
+                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
+                _isWorking = false;
+                _dayCompleted = true;
+                _workStartTime = null;
+                _workDuration = Duration.zero;
+                _workTimer?.cancel();
+              } else if (checkoutTime != null) {
+                print(
+                  '_refreshState: Checkout con tiempo pero status no completed',
+                );
+                print('_refreshState: checkoutTime: $checkoutTime');
+                print('_refreshState: checkoutStatus: $checkoutStatus');
+                // Si hay checkout_time, asumir que está completado independientemente del status
+                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
+                _isWorking = false;
+                _dayCompleted = true;
+                _workStartTime = null;
+                _workDuration = Duration.zero;
+                _workTimer?.cancel();
+              } else {
+                print('_refreshState: Caso inesperado');
+                _isWorking = false;
+                _dayCompleted = false;
+                _workStartTime = null;
+                _workDuration = Duration.zero;
+              }
+            });
+          }
 
           print(
             '_refreshState: Estado final - _isWorking: $_isWorking, _dayCompleted: $_dayCompleted',

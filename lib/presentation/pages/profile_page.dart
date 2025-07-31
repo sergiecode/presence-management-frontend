@@ -241,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: const Color(0xFFE67D21),
+        backgroundColor: Color.fromARGB(255, 89, 167, 92),
       ),
     );
   }
