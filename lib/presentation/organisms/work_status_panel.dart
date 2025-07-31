@@ -256,7 +256,7 @@ class WorkStatusPanel extends StatelessWidget {
                       child: Text(
                         isWorking
                             ? 'Trabajando actualmente'
-                            : 'No está trabajando',
+                            : 'No estás trabajando',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: isWorking
@@ -594,19 +594,7 @@ class WorkStatusPanel extends StatelessWidget {
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        if (location['location_detail'] != null && 
-                                            location['location_detail'].toString().isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 2),
-                                            child: Text(
-                                              location['location_detail'],
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ),
+                                        
                                       ],
                                     ),
                                   ),

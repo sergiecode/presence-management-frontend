@@ -827,55 +827,42 @@ class CheckInService {
   static String _buildLocationDetail(Map<String, dynamic> locationData) {
     final locationType = locationData['location_type'];
     
+    print('🏠 _buildLocationDetail: locationType=$locationType, locationData=$locationData');
+    
     // Si es "Domicilio Alternativo" (LocationTypes.REMOTE_ALTERNATIVE = 2)
-    if (locationType == 2 && locationData['address'] != null) {
-      String detail = locationData['address'];
+    if (locationType == 2) {
+      print('🏠 _buildLocationDetail: Es domicilio alternativo');
       
-      // Agregar piso si está disponible
-      if (locationData['floor'] != null && locationData['floor'].toString().isNotEmpty) {
-        detail += ', Piso ${locationData['floor']}';
+      if (locationData['address'] != null && locationData['address'].toString().isNotEmpty) {
+        String detail = locationData['address'];
+        print('🏠 _buildLocationDetail: Construyendo con address: $detail');
+        
+        // Agregar piso si está disponible
+        if (locationData['floor'] != null && locationData['floor'].toString().isNotEmpty) {
+          detail += ', Piso ${locationData['floor']}';
+          print('🏠 _buildLocationDetail: Agregando piso: $detail');
+        }
+        
+        // Agregar departamento si está disponible
+        if (locationData['apartment'] != null && locationData['apartment'].toString().isNotEmpty) {
+          detail += ', Dpto ${locationData['apartment']}';
+          print('🏠 _buildLocationDetail: Agregando depto: $detail');
+        }
+        
+        print('🏠 _buildLocationDetail: Detalle final: $detail');
+        return detail;
+      } else {
+        print('🏠 _buildLocationDetail: ⚠️ PROBLEMA: No hay address válida para domicilio alternativo!');
+        print('🏠 _buildLocationDetail: address value: ${locationData['address']}');
+        // En lugar de retornar "Domicilio Alternativo", intentar usar otros campos o dar error
+        return 'Domicilio Alternativo (Sin dirección especificada)';
       }
-      
-      // Agregar departamento si está disponible
-      if (locationData['apartment'] != null && locationData['apartment'].toString().isNotEmpty) {
-        detail += ', Dpto ${locationData['apartment']}';
-      }
-      
-      return detail;
     }
     
     // Para otros tipos, usar el nombre del tipo de ubicación según LocationTypes
     switch (locationType) {
       case 1: // REMOTE_DECLARED
         return 'Domicilio';
-      case 2: // REMOTE_ALTERNATIVE  
-        return 'Domicilio Alternativo';
-      case 3: // CLIENT
-        return 'Cliente';
-      case 4: // OFFICE
-        return 'Oficina';
-      default:
-        return 'Ubicación no especificada';
-    }
-  }
-
-  /// Obtener etiqueta de tipo de ubicación desde entero
-  ///
-  /// Convierte un código numérico de tipo de ubicación a su texto legible
-  ///
-  /// Parámetros:
-  /// - [locationType]: Código numérico del tipo de ubicación
-  ///
-  /// Retorna:
-  /// - [String]: Etiqueta legible del tipo de ubicación
-  static String _getLocationTypeLabelFromInt(dynamic locationType) {
-    final int locationTypeInt = locationType is int ? locationType : int.tryParse(locationType?.toString() ?? '') ?? 1;
-    
-    switch (locationTypeInt) {
-      case 1: // REMOTE_DECLARED
-        return 'Domicilio';
-      case 2: // REMOTE_ALTERNATIVE  
-        return 'Domicilio Alternativo';
       case 3: // CLIENT
         return 'Cliente';
       case 4: // OFFICE
@@ -887,9 +874,8 @@ class CheckInService {
 
   /// Obtener historial de ubicaciones de la sesión actual de trabajo
   ///
-  /// NOTA: Por el momento devuelve datos hardcodeados para mostrar 
-  /// cómo funcionaría la línea de tiempo. Será reemplazado por 
-  /// llamada al backend cuando implemente el endpoint específico.
+  /// Utiliza el endpoint GET /api/checkins/locations para obtener
+  /// el historial real de cambios de ubicación durante la jornada actual.
   ///
   /// Parámetros:
   /// - [token]: Token de autenticación del usuario
@@ -901,7 +887,7 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<Map<String, dynamic>>> getSessionLocationHistory(String token) async {
     try {
-      print('🔍 CheckInService: Obteniendo historial de ubicaciones (DATOS DEMO)...');
+      print('🔍 CheckInService: Obteniendo historial de ubicaciones desde API...');
       
       // Verificar que hay una sesión activa
       final todayCheckIn = await getTodayCheckIn(token);
@@ -910,50 +896,148 @@ class CheckInService {
         return [];
       }
 
-      // DATOS HARDCODEADOS PARA DEMOSTRACIÓN
-      // TODO: Reemplazar por llamada real al backend cuando esté disponible
-      final List<Map<String, dynamic>> locationHistory = [
-        {
-          'location_type': 1,
-          'location_detail': 'Domicilio',
-          'timestamp': '2025-07-25T08:00:00Z',
-          'event': 'check_in',
-          'description': 'Inicio de jornada en Domicilio',
-        },
-        {
-          'location_type': 4,
-          'location_detail': 'Oficina',
-          'timestamp': '2025-07-25T10:30:00Z',
-          'event': 'location_change',
-          'description': 'Cambio de ubicación a Oficina',
-        },
-        {
-          'location_type': 3,
-          'location_detail': 'Cliente ABC Corp',
-          'timestamp': '2025-07-25T14:00:00Z',
-          'event': 'location_change',
-          'description': 'Cambio de ubicación a Cliente',
-        },
-        {
-          'location_type': 1,
-          'location_detail': 'Domicilio',
-          'timestamp': '2025-07-25T17:30:00Z',
-          'event': 'location_change',
-          'description': 'Cambio de ubicación a Domicilio',
-        },
-      ];
+      // Llamar al endpoint GET /api/checkins/locations
+      final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations';
+      print('🔍 CheckInService: URL completa: $url');
 
-      print('🔍 CheckInService: ✅ Historial demo generado: ${locationHistory.length} entradas');
-      for (int i = 0; i < locationHistory.length; i++) {
-        print('🔍   Entrada $i: ${locationHistory[i]}');
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      print('📡 CheckInService: Enviando petición GET al historial de ubicaciones...');
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
+
+      print('📡 CheckInService: Respuesta recibida');
+      print('📡 CheckInService: Status code: ${response.statusCode}');
+      print('📡 CheckInService: Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = json.decode(response.body);
+          print('✅ CheckInService: Historial de ubicaciones obtenido exitosamente');
+          
+          // Procesar los datos del historial
+          List<Map<String, dynamic>> locationHistory = [];
+          
+          if (responseData is List) {
+            // Si es una lista directa de ubicaciones
+            for (var location in responseData) {
+              if (location is Map<String, dynamic>) {
+                locationHistory.add(_parseLocationHistoryEntry(location));
+              }
+            }
+          } else if (responseData is Map<String, dynamic>) {
+            // Si viene envuelto en un objeto
+            if (responseData['data'] is List) {
+              for (var location in responseData['data']) {
+                if (location is Map<String, dynamic>) {
+                  locationHistory.add(_parseLocationHistoryEntry(location));
+                }
+              }
+            } else if (responseData['locations'] is List) {
+              for (var location in responseData['locations']) {
+                if (location is Map<String, dynamic>) {
+                  locationHistory.add(_parseLocationHistoryEntry(location));
+                }
+              }
+            }
+          }
+          
+          // Ordenar por timestamp (más reciente primero para la UI)
+          locationHistory.sort((a, b) {
+            final timeA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
+            final timeB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
+            return timeA.compareTo(timeB); // Orden cronológico (más antiguo primero)
+          });
+
+          print('🔍 CheckInService: ✅ Historial procesado: ${locationHistory.length} entradas');
+          for (int i = 0; i < locationHistory.length; i++) {
+            print('🔍   Entrada $i: ${locationHistory[i]}');
+          }
+          
+          return locationHistory;
+
+        } catch (e) {
+          print('❌ CheckInService: Error parseando respuesta del historial: $e');
+          return [];
+        }
+      } else if (response.statusCode == 404) {
+        // No hay historial (es normal si no se han hecho cambios)
+        print('🔍 CheckInService: No hay historial de cambios de ubicación');
+        return [];
+      } else {
+        // Manejar otros errores
+        final errorMessage = _getErrorMessage(response.statusCode, response.body);
+        print('❌ CheckInService: Error del servidor: $errorMessage');
+        return [];
       }
-      
-      return locationHistory;
 
     } catch (e) {
       print('❌ CheckInService: Error obteniendo historial de ubicaciones: $e');
       print('❌ CheckInService: Stack trace: ${StackTrace.current}');
+      
+      // Convertir errores de red en mensajes más amigables
+      if (e.toString().contains('TimeoutException')) {
+        print('❌ CheckInService: Timeout al obtener historial');
+      } else if (e.toString().contains('SocketException')) {
+        print('❌ CheckInService: Error de conexión al obtener historial');
+      }
+      
       return [];
     }
+  }
+
+  /// Parsear una entrada del historial de ubicaciones
+  ///
+  /// Convierte los datos raw del servidor en el formato esperado por la UI
+  ///
+  /// Parámetros:
+  /// - [data]: Datos raw de una entrada del historial
+  ///
+  /// Retorna:
+  /// - [Map<String, dynamic>]: Entrada formateada para la UI
+  static Map<String, dynamic> _parseLocationHistoryEntry(Map<String, dynamic> data) {
+    // Determinar el tipo de evento
+    String event = 'location_change';
+    if (data['event_type'] != null) {
+      event = data['event_type'];
+    } else if (data['event'] != null) {
+      event = data['event'];
+    }
+    
+    // Construir descripción
+    String description = '';
+    if (data['description'] != null && data['description'].toString().isNotEmpty) {
+      description = data['description'];
+    } else {
+      // Generar descripción basada en el tipo de evento
+      final locationDetail = data['location_detail']?.toString() ?? 'Ubicación';
+      switch (event) {
+        case 'check_in':
+          description = 'Inicio de jornada en $locationDetail';
+          break;
+        case 'check_out':
+          description = 'Fin de jornada en $locationDetail';
+          break;
+        case 'location_change':
+        default:
+          description = 'Cambio de ubicación a $locationDetail';
+          break;
+      }
+    }
+
+    return {
+      'location_type': data['location_type'] ?? 1,
+      'location_detail': data['location_detail']?.toString() ?? '',
+      'timestamp': data['timestamp'] ?? data['created_at'] ?? data['updated_at'] ?? DateTime.now().toIso8601String(),
+      'event': event,
+      'description': description,
+    };
   }
 }
