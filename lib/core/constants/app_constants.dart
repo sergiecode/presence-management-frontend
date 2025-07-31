@@ -13,10 +13,10 @@ import 'package:flutter/material.dart';
 class ApiConstants {
   /// URL base de la API del backend
   /// Nota: Para Android, usar 10.0.2.2 en lugar de localhost
-  static const String baseUrl = 'http://10.0.2.2:8080'; // TODO : Si se quiere probar en android fisico, cambiar por la IP de la máquina
+  static const String baseUrl = 'https://test-presence-api.abs-ti.com'; // Ambiente subido al servidor
   
   /// URL alternativa en caso de problemas de conexión
-  static const String alternativeBaseUrl = 'http://localhost:8080';
+  static const String alternativeBaseUrl = 'http://10.0.2.2:8080';
 
   /// Endpoints de autenticación (sin prefijo /api)
   static const String loginEndpoint = '/auth/login';

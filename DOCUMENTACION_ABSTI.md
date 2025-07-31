@@ -280,7 +280,7 @@ Actualizar la URL del backend en:
 ```dart
 // lib/core/constants/api_constants.dart
 class ApiConstants {
-  static const String baseUrl = 'https://your-api-domain.com';
+  static const String baseUrl = 'https://test-presence-api.abs-ti.com';
 }
 ```
 
