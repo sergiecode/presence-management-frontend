@@ -54,11 +54,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _workTimer;
 
   // Configuración de ubicación usando constantes del backend
-  int _selectedLocation = LocationTypes.REMOTE_DECLARED; // Por defecto REMOTE_DECLARED (Domicilio)
+  List<int> _selectedLocations = [LocationTypes.REMOTE_DECLARED]; // Lista de ubicaciones seleccionadas
   final Map<int, String> _locations = LocationTypes.names;
-
-  // Lista de ubicaciones seleccionadas - DEPRECATED: Ahora se usa selección única
-  // final List<int> _selectedLocations = [LocationTypes.REMOTE_DECLARED];
 
   // Campos adicionales para "Domicilio Alternativo"
   String? _otherLocationDetail;
@@ -71,12 +68,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Historial de ubicaciones durante la jornada
   List<Map<String, dynamic>> _locationHistory = [];
 
-  void _onLocationChanged(int newLocation) {
+  void _onLocationChanged(List<int> newLocations) {
     setState(() {
-      _selectedLocation = newLocation;
+      _selectedLocations = newLocations;
       
-      // Si se cambia desde "Domicilio Alternativo", limpiar sus campos
-      if (newLocation != LocationTypes.REMOTE_ALTERNATIVE) {
+      // Si no incluye "Domicilio Alternativo", limpiar sus campos
+      if (!newLocations.contains(LocationTypes.REMOTE_ALTERNATIVE)) {
         _otherLocationDetail = null;
         _otherLocationFloor = null;
         _otherLocationApartment = null;
@@ -243,7 +240,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 );
               }
 
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+              _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _completedLocationDetail = checkIn['location_detail'];
 
               // Iniciar timer para mostrar duración actual
@@ -256,7 +253,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               print(
                 '_loadTodayCheckIn: checkoutTime: $checkoutTime, checkoutStatus: $checkoutStatus',
               );
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+              _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _completedLocationDetail = checkIn['location_detail'];
               _isWorking = false;
               _dayCompleted = true;
@@ -272,7 +269,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
               // Si hay checkout_time pero no status completed, asumir que está completado
               // (el backend podría no estar actualizando el status correctamente)
-              _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+              _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _completedLocationDetail = checkIn['location_detail'];
               _isWorking = false;
               _dayCompleted =
@@ -446,16 +443,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _startWork() async {
     if (_isProcessing) return;
 
+    // Verificar que al menos una ubicación esté seleccionada
+    if (_selectedLocations.isEmpty) {
+      _showErrorSnackBar('Selecciona al menos una ubicación para trabajar');
+      return;
+    }
+
     // Verificar si el día ya está completado
     if (_dayCompleted) {
       _showErrorSnackBar('Ya completaste tu jornada laboral de hoy');
       return;
     }
 
+    // Construir mensaje para el diálogo según cantidad de ubicaciones
+    String locationMessage;
+    if (_selectedLocations.length == 1) {
+      locationMessage = _locations[_selectedLocations.first]!;
+    } else {
+      locationMessage = 'ubicaciones múltiples: ${_selectedLocations.map((id) => _locations[id]).join(', ')}';
+    }
+
     // Mostrar diálogo de confirmación
     final confirm = await WorkConfirmationDialog.showStartWorkDialog(
       context: context,
-      locationName: _locations[_selectedLocation]!,
+      locationName: locationMessage,
     );
 
     if (confirm == true) {
@@ -519,28 +530,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final currentMinutes = currentTime.hour * 60 + currentTime.minute;
           final isLate = currentMinutes > startMinutes;
 
-           // Crear los datos de ubicación para enviar al backend
-          String locationDetail = _locations[_selectedLocation] ?? 'Desconocido';
-          
-          // Si es "Domicilio Alternativo", construir la dirección completa
-          if (_selectedLocation == LocationTypes.REMOTE_ALTERNATIVE && _otherLocationDetail != null) {
-            locationDetail = _otherLocationDetail!;
+           // Crear los datos de ubicaciones para enviar al backend (TODAS las ubicaciones seleccionadas)
+          final locationsData = _selectedLocations.map((locationId) {
+            String locationDetail = _locations[locationId] ?? 'Desconocido';
             
-            // Agregar piso si está disponible
-            if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
-              locationDetail += ', Piso $_otherLocationFloor';
+            // Si es "Domicilio Alternativo", construir la dirección completa
+            if (locationId == LocationTypes.REMOTE_ALTERNATIVE && _otherLocationDetail != null) {
+              locationDetail = _otherLocationDetail!;
+              
+              // Agregar piso si está disponible
+              if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
+                locationDetail += ', Piso $_otherLocationFloor';
+              }
+              
+              // Agregar departamento si está disponible
+              if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
+                locationDetail += ', Dpto $_otherLocationApartment';
+              }
             }
             
-            // Agregar departamento si está disponible
-            if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
-              locationDetail += ', Dpto $_otherLocationApartment';
-            }
-          }
-          
-          final locationsData = [{
-            'location_type': _selectedLocation,
-            'location_detail': locationDetail,
-          }];
+            return {
+              'location_type': locationId,
+              'location_detail': locationDetail,
+            };
+          }).toList();
 
           // Los datos para el check-in
           final checkInData = {
@@ -578,8 +591,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _workStartTime = DateTime.now();
               _workDuration = Duration.zero;
               _todayCheckIn = result;
-              // Actualizar el completed location detail con la ubicación inicial
-              _completedLocationDetail = locationDetail;
+              // Actualizar el completed location detail con todas las ubicaciones
+              _completedLocationDetail = _selectedLocations.length == 1 
+                ? locationsData.first['location_detail'] as String?
+                : locationsData.map((loc) => loc['location_detail'] as String).join(', ');
             });
           }
 
@@ -611,11 +626,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final currentTime = DateTime.now();
     final sessionDuration = currentTime.difference(_workStartTime!);
 
+    // Construir mensaje para el diálogo según cantidad de ubicaciones
+    String locationMessage;
+    if (_selectedLocations.length == 1) {
+      locationMessage = _locations[_selectedLocations.first]!;
+    } else {
+      locationMessage = 'ubicaciones múltiples: ${_selectedLocations.map((id) => _locations[id]).join(', ')}';
+    }
+
     // Mostrar diálogo de confirmación
     final confirm = await WorkConfirmationDialog.showStopWorkDialog(
       context: context,
       sessionDuration: sessionDuration,
-      locationName: _locations[_selectedLocation]!,
+      locationName: locationMessage,
     );
 
     if (confirm == true) {
@@ -840,7 +863,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (context) => LocationChangeDialog(
-        currentLocation: _selectedLocation,
+        currentLocations: _selectedLocations, // Pasar toda la lista de ubicaciones
         locations: _locations,
         onLocationChanged: _changeLocationDuringWork,
       ),
@@ -939,7 +962,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             print('   - floor: $floor');
             print('   - apartment: $apartment');
             
-            _selectedLocation = newLocation;
+            _selectedLocations = [newLocation];
             if (newLocation == LocationTypes.REMOTE_ALTERNATIVE) {
               _otherLocationDetail = address ?? '';
               _otherLocationFloor = floor ?? '';
@@ -1081,7 +1104,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 print(
                   '_refreshState: Usuario sigue trabajando (sin checkout_time)',
                 );
-                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación del historial si está disponible
                 _isWorking = true;
                 _dayCompleted = false;
@@ -1096,7 +1119,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 print(
                   '_refreshState: Ubicación final determinada: $actualLocationDetail',
                 );
-                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
                 _isWorking = false;
                 _dayCompleted = true;
@@ -1110,7 +1133,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 print('_refreshState: checkoutTime: $checkoutTime');
                 print('_refreshState: checkoutStatus: $checkoutStatus');
                 // Si hay checkout_time, asumir que está completado independientemente del status
-                _selectedLocation = checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED;
+                _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
                 _isWorking = false;
                 _dayCompleted = true;
@@ -1232,7 +1255,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 workStartTime: _workStartTime,
                 workDuration: _workDuration,
                 totalDayTime: _getTodayWorkTime(),
-                selectedLocation: _selectedLocation,
+                selectedLocations: _selectedLocations,
                 locations: _locations,
                 isProcessing: _isProcessing,
                 dayCompleted: _dayCompleted,
