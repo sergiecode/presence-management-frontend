@@ -4,13 +4,13 @@ import '../molecules/address_search_field.dart';
 
 /// Diálogo para cambiar ubicación durante la jornada laboral
 class LocationChangeDialog extends StatefulWidget {
-  final int? currentLocation;
+  final List<int> currentLocations; // Cambio a lista para múltiples ubicaciones
   final Map<int, String> locations;
   final Function(int, {String? address, String? floor, String? apartment}) onLocationChanged;
 
   const LocationChangeDialog({
     super.key,
-    required this.currentLocation,
+    required this.currentLocations,
     required this.locations,
     required this.onLocationChanged,
   });
@@ -28,7 +28,8 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedLocation = widget.currentLocation;
+    // Inicializar con la primera ubicación de la lista como selección por defecto
+    _selectedLocation = widget.currentLocations.isNotEmpty ? widget.currentLocations.first : null;
   }
 
   @override
@@ -82,8 +83,8 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
             ),
             const SizedBox(height: 20),
 
-            // Current location info
-            if (widget.currentLocation != null)
+            // Current locations info
+            if (widget.currentLocations.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -91,20 +92,37 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.currentLocations.length == 1 
+                            ? 'Ubicación actual:' 
+                            : 'Ubicaciones actuales:',
+                          style: const TextStyle(
+                            color: Colors.blue,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ...widget.currentLocations.map((locationId) => Padding(
+                      padding: const EdgeInsets.only(left: 28, top: 2),
                       child: Text(
-                        'Ubicación actual: ${widget.locations[widget.currentLocation] ?? "No especificada"}',
+                        '• ${widget.locations[locationId] ?? "No especificada"}',
                         style: const TextStyle(
                           color: Colors.blue,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
+                    )).toList(),
                   ],
                 ),
               ),
@@ -214,7 +232,7 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _selectedLocation != null && _selectedLocation != widget.currentLocation
+                  onPressed: _selectedLocation != null && !widget.currentLocations.contains(_selectedLocation)
                       ? _handleLocationChange
                       : null,
                   style: ElevatedButton.styleFrom(
