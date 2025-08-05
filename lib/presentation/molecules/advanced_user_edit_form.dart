@@ -68,20 +68,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   File? _selectedProfileImage;
   bool _isUploadingImage = false;
 
-  /// Lista de zonas horarias comunes
-  final List<String> _commonTimezones = [
-    'America/Argentina/Buenos_Aires',
-    'America/Santiago',
-    'America/Sao_Paulo',
-    'America/Lima',
-    'America/Bogota',
-    'America/Mexico_City',
-    'America/New_York',
-    'Europe/Madrid',
-    'Europe/London',
-    'UTC',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -150,29 +136,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
         });
       }
     });
-  }
-
-  /// Selecciona hora de check-in
-  Future<void> _selectCheckinTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: AppColors.primary),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _checkinStartTimeController.text =
-            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-      });
-    }
   }
 
   /// Construye un campo de información de solo lectura
