@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
           'Main.dart Consumer: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}',
         );
         return MaterialApp(
-          title: 'Absti Asistencia',
+          title: 'ABSistencia',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           // Ruta inicial basada en el estado de autenticación
