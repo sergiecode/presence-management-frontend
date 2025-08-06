@@ -69,6 +69,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _locationHistory = [];
 
   void _onLocationChanged(List<int> newLocations) {
+    if (!mounted) return;
     setState(() {
       _selectedLocations = newLocations;
       
@@ -82,18 +83,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _onOtherLocationChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationDetail = value;
     });
   }
 
   void _onOtherLocationFloorChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationFloor = value;
     });
   }
 
   void _onOtherLocationApartmentChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationApartment = value;
     });
@@ -140,6 +144,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Carga el check-in del día actual si existe
   Future<void> _loadTodayCheckIn() async {
     // _loadTodayCheckIn: Iniciando carga...
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -320,11 +325,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _startWorkTimer() {
     _workTimer?.cancel();
     _workTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_workStartTime != null && mounted) {
-        setState(() {
-          _workDuration = DateTime.now().difference(_workStartTime!);
-        });
+      if (!mounted || _workStartTime == null) {
+        timer.cancel();
+        return;
       }
+      setState(() {
+        _workDuration = DateTime.now().difference(_workStartTime!);
+      });
     });
   }
 
@@ -1062,6 +1069,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Muestra un SnackBar de éxito
   void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -1072,6 +1080,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Muestra un SnackBar de error
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
