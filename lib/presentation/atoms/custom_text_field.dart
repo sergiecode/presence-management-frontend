@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// **ÁTOMO: Campo de texto personalizado**
 ///
@@ -43,6 +44,9 @@ class CustomTextField extends StatelessWidget {
   /// Función que se ejecuta al tocar el campo
   final VoidCallback? onTap;
 
+  /// Lista de formateadores de entrada
+  final List<TextInputFormatter>? inputFormatters;
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -55,6 +59,7 @@ class CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.readOnly = false,
     this.onTap,
+    this.inputFormatters,
   });
 
   @override
@@ -73,6 +78,7 @@ class CustomTextField extends StatelessWidget {
       enabled: enabled,
       readOnly: readOnly,
       onTap: onTap,
+      inputFormatters: inputFormatters,
     );
   }
 }

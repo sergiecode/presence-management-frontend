@@ -96,7 +96,11 @@ class AuthService {
 
         try {
           final errorData = jsonDecode(response.body);
-          final errorMessage = errorData['message'] ?? 'Error de autenticación';
+          // Intentar obtener el mensaje de error desde diferentes campos posibles
+          final errorMessage = errorData['message'] ?? 
+                               errorData['error'] ?? 
+                               errorData['msg'] ?? 
+                               'Error de autenticación';
           print('AuthService: Mensaje de error del servidor: $errorMessage');
           throw Exception(errorMessage);
         } catch (jsonError) {
@@ -190,7 +194,11 @@ class AuthService {
       } else {
         // Manejar errores de registro
         final errorData = jsonDecode(response.body);
-        final errorMessage = errorData['message'] ?? 'Error en el registro';
+        // Intentar obtener el mensaje de error desde diferentes campos posibles
+        final errorMessage = errorData['message'] ?? 
+                             errorData['error'] ?? 
+                             errorData['msg'] ?? 
+                             'Error en el registro';
 
         print('AuthService: Error de registro: $errorMessage');
         throw Exception(errorMessage);

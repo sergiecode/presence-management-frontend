@@ -101,7 +101,7 @@ flutter:
 # Configuración del splash screen
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/images/absistencia-splash.png
+  image: assets/images/absistencia-icon.png
   fullscreen: false
 
 # Configuración del icono de la aplicación

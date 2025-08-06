@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../atoms/atoms.dart';
 
 /// **MOLÉCULA: Formulario de Registro**
@@ -132,10 +133,18 @@ class _RegisterFormState extends State<RegisterForm> {
     if (value == null || value.trim().isEmpty) {
       return 'El teléfono es requerido';
     }
-    // Verificar que tenga al menos 8 dígitos (números locales mínimos)
-    if (value.trim().length < 8) {
-      return 'El teléfono debe tener al menos 8 caracteres';
+    
+    // Verificar que solo contenga números, espacios, paréntesis, guiones y el signo +
+    if (!RegExp(r'^[0-9+\-\s\(\)]+$').hasMatch(value.trim())) {
+      return 'El teléfono solo puede contener números, +, -, espacios, ( y )';
     }
+    
+    // Contar solo los dígitos para validar longitud mínima
+    final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.length < 8) {
+      return 'El teléfono debe tener al menos 8 dígitos';
+    }
+    
     return null;
   }
 
@@ -206,6 +215,9 @@ class _RegisterFormState extends State<RegisterForm> {
             keyboardType: TextInputType.phone,
             validator: _validatePhone,
             enabled: !widget.isLoading,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s\(\)]')),
+            ],
           ),
           const SizedBox(height: 16),
 
