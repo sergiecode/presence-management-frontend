@@ -69,6 +69,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _locationHistory = [];
 
   void _onLocationChanged(List<int> newLocations) {
+    if (!mounted) return;
     setState(() {
       _selectedLocations = newLocations;
       
@@ -82,18 +83,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _onOtherLocationChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationDetail = value;
     });
   }
 
   void _onOtherLocationFloorChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationFloor = value;
     });
   }
 
   void _onOtherLocationApartmentChanged(String value) {
+    if (!mounted) return;
     setState(() {
       _otherLocationApartment = value;
     });
@@ -140,6 +144,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Carga el check-in del día actual si existe
   Future<void> _loadTodayCheckIn() async {
     // _loadTodayCheckIn: Iniciando carga...
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -320,11 +325,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _startWorkTimer() {
     _workTimer?.cancel();
     _workTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_workStartTime != null && mounted) {
-        setState(() {
-          _workDuration = DateTime.now().difference(_workStartTime!);
-        });
+      if (!mounted || _workStartTime == null) {
+        timer.cancel();
+        return;
       }
+      setState(() {
+        _workDuration = DateTime.now().difference(_workStartTime!);
+      });
     });
   }
 
@@ -671,11 +678,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await CheckInService.checkOut(token, checkOutData);
 
           if (mounted) {
+            // Construir el location_detail actual donde se termina la jornada
+            String currentLocationDetail;
+            if (_selectedLocations.length == 1) {
+              final locationId = _selectedLocations.first;
+              if (locationId == LocationTypes.REMOTE_ALTERNATIVE && 
+                  _otherLocationDetail != null && _otherLocationDetail!.isNotEmpty) {
+                currentLocationDetail = _otherLocationDetail!;
+                if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
+                  currentLocationDetail += ', Piso $_otherLocationFloor';
+                }
+                if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
+                  currentLocationDetail += ', Dpto $_otherLocationApartment';
+                }
+              } else {
+                currentLocationDetail = _locations[locationId] ?? 'Ubicación desconocida';
+              }
+            } else {
+              currentLocationDetail = _selectedLocations.map((id) => _locations[id]).join(', ');
+            }
+            
+            print('_stopWork: Terminando jornada en ubicación actual: $currentLocationDetail');
+
             setState(() {
               _isWorking = false;
               _dayCompleted = true; // Marcar día como completado
               _workStartTime = null;
               // No resetear _workDuration aquí, _getTodayWorkTime() calculará el tiempo real
+
+              // Actualizar _completedLocationDetail con la ubicación actual donde se termina
+              _completedLocationDetail = currentLocationDetail;
 
               // Actualizar el check-in con la hora de salida
               _todayCheckIn = {
@@ -683,6 +715,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 'checkout_time': CheckInService.toRFC3339(currentTime),
                 'checkout_status':
                     'completed', // Asegurar que el status esté completado
+                'location_detail': currentLocationDetail, // Actualizar también en el check-in
               };
             });
           }
@@ -1036,6 +1069,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Muestra un SnackBar de éxito
   void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -1046,6 +1080,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Muestra un SnackBar de error
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
