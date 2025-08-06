@@ -30,6 +30,7 @@ class WorkConfirmationDialog {
 
               // Información de ubicación
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(
                     Icons.location_on,
@@ -37,11 +38,15 @@ class WorkConfirmationDialog {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Ubicación: $locationName',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFE67D21),
+                  Expanded(
+                    child: Text(
+                      'Ubicación: $locationName',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFE67D21),
+                      ),
+                      softWrap: true,
+                      overflow: TextOverflow.visible,
                     ),
                   ),
                 ],
@@ -129,6 +134,7 @@ class WorkConfirmationDialog {
                     ),
                     const SizedBox(height: 8),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(
                           Icons.location_on,
@@ -136,9 +142,13 @@ class WorkConfirmationDialog {
                           size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Ubicación: $locationName',
-                          style: TextStyle(color: Colors.grey[600]),
+                        Expanded(
+                          child: Text(
+                            'Ubicación: $locationName',
+                            style: TextStyle(color: Colors.grey[600]),
+                            softWrap: true,
+                            overflow: TextOverflow.visible,
+                          ),
                         ),
                       ],
                     ),

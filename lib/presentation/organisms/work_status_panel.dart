@@ -32,8 +32,8 @@ class WorkStatusPanel extends StatelessWidget {
   /// Tiempo total trabajado en el día
   final Duration totalDayTime;
 
-  /// Ubicación seleccionada para trabajar (selección única)
-  final int selectedLocation;
+  /// Ubicaciones seleccionadas para trabajar (selección múltiple)
+  final List<int> selectedLocations;
 
   /// Mapa de ubicaciones disponibles
   final Map<int, String> locations;
@@ -50,8 +50,8 @@ class WorkStatusPanel extends StatelessWidget {
   /// Función que se ejecuta al terminar trabajo
   final VoidCallback onStopWork;
 
-  /// Función que se ejecuta al cambiar ubicación (selección única)
-  final Function(int) onLocationChanged;
+  /// Función que se ejecuta al cambiar ubicaciones (selección múltiple)
+  final Function(List<int>) onLocationChanged;
 
   final String? otherLocationDetail;
   final Function(String)? onOtherLocationChanged;
@@ -74,7 +74,7 @@ class WorkStatusPanel extends StatelessWidget {
     this.workStartTime,
     required this.workDuration,
     required this.totalDayTime,
-    required this.selectedLocation,
+    required this.selectedLocations,
     required this.locations,
     this.isProcessing = false,
     this.dayCompleted = false,
@@ -99,28 +99,6 @@ class WorkStatusPanel extends StatelessWidget {
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  /// Formatea timestamp para el historial de ubicaciones
-  String _formatHistoryTime(String timestamp) {
-    try {
-      DateTime dateTime;
-      
-      // Si el timestamp contiene 'T', es un formato ISO completo
-      if (timestamp.contains('T')) {
-        dateTime = DateTime.parse(timestamp);
-      } else {
-        // Si es solo hora (HH:MM:SS), combinar con fecha de hoy
-        final today = DateTime.now();
-        final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-        dateTime = DateTime.parse('$todayStr $timestamp');
-      }
-      
-      // Formatear como HH:MM
-      return "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-    } catch (e) {
-      return timestamp;
-    }
-  }
-
   /// Construye el texto de ubicación completo incluyendo piso y departamento
   String _buildLocationText() {
     // Si la jornada está completada, usar el completedLocationDetail del backend
@@ -128,8 +106,9 @@ class WorkStatusPanel extends StatelessWidget {
       return completedLocationDetail!;
     }
     
-    // Si no está completada, usar la lógica normal
-    if (selectedLocation == LocationTypes.REMOTE_ALTERNATIVE && (otherLocationDetail?.isNotEmpty ?? false)) {
+    // Si no está completada, usar la lógica normal con la primera ubicación seleccionada
+    final primaryLocation = selectedLocations.isNotEmpty ? selectedLocations.first : 0;
+    if (primaryLocation == LocationTypes.REMOTE_ALTERNATIVE && (otherLocationDetail?.isNotEmpty ?? false)) {
       String locationText = otherLocationDetail!;
       
       // Agregar piso si está disponible
@@ -144,7 +123,7 @@ class WorkStatusPanel extends StatelessWidget {
       
       return locationText;
     }
-    return locations[selectedLocation] ?? '';
+    return locations[primaryLocation] ?? '';
   }
 
   @override
@@ -384,18 +363,28 @@ class WorkStatusPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              // Radio buttons para selección única de ubicación
+              // Checkboxes para selección múltiple de ubicación
               Column(
                 children: locations.entries.map((entry) {
-                  return RadioListTile<int>(
+                  return CheckboxListTile(
                     title: Text(entry.value),
-                    value: entry.key,
-                    groupValue: selectedLocation,
+                    value: selectedLocations.contains(entry.key),
                     onChanged: isProcessing
                         ? null
-                        : (int? value) {
+                        : (bool? value) {
                             if (value != null) {
-                              onLocationChanged(value);
+                              List<int> newSelections = List.from(selectedLocations);
+                              if (value) {
+                                if (!newSelections.contains(entry.key)) {
+                                  newSelections.add(entry.key);
+                                }
+                              } else {
+                                newSelections.remove(entry.key);
+                              }
+                              // Asegurar que al menos una ubicación esté seleccionada
+                              if (newSelections.isNotEmpty) {
+                                onLocationChanged(newSelections);
+                              }
                             }
                           },
                     activeColor: const Color(0xFFE67D21),
@@ -404,7 +393,7 @@ class WorkStatusPanel extends StatelessWidget {
                 }).toList(),
               ),
               // Mostrar input si "Domicilio Alternativo" está seleccionado
-              if (selectedLocation == LocationTypes.REMOTE_ALTERNATIVE) ...[ // REMOTE_ALTERNATIVE (Domicilio Alternativo)
+              if (selectedLocations.contains(LocationTypes.REMOTE_ALTERNATIVE)) ...[ // REMOTE_ALTERNATIVE (Domicilio Alternativo)
                 const SizedBox(height: 12),
                 AddressSearchField(
                   enabled: !isProcessing,
@@ -598,24 +587,6 @@ class WorkStatusPanel extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue.shade100,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      _formatHistoryTime(location['timestamp'] ?? ''),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blue.shade700,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -641,7 +612,9 @@ class WorkStatusPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Trabajando desde: ${_buildLocationText()}',
+                      selectedLocations.length == 1 
+                        ? 'Trabajando desde: ${_buildLocationText()}'
+                        : 'Hoy trabajarás desde: ${selectedLocations.map((id) => locations[id]).join(', ')}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Colors.grey,

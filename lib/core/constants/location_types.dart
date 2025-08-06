@@ -21,7 +21,7 @@ class LocationTypes {
 
   /// Mapeo de IDs a nombres descriptivos en español
   static const Map<int, String> names = {
-    REMOTE_DECLARED: 'Domicilio',
+    REMOTE_DECLARED: 'Domicilio Declarado',
     REMOTE_ALTERNATIVE: 'Domicilio Alternativo',
     CLIENT: 'Cliente',
     OFFICE: 'Oficina',

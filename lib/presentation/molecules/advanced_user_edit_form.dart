@@ -68,20 +68,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
   File? _selectedProfileImage;
   bool _isUploadingImage = false;
 
-  /// Lista de zonas horarias comunes
-  final List<String> _commonTimezones = [
-    'America/Argentina/Buenos_Aires',
-    'America/Santiago',
-    'America/Sao_Paulo',
-    'America/Lima',
-    'America/Bogota',
-    'America/Mexico_City',
-    'America/New_York',
-    'Europe/Madrid',
-    'Europe/London',
-    'UTC',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -150,29 +136,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
         });
       }
     });
-  }
-
-  /// Selecciona hora de check-in
-  Future<void> _selectCheckinTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: AppColors.primary),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _checkinStartTimeController.text =
-            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-      });
-    }
   }
 
   /// Construye un campo de información de solo lectura
@@ -409,114 +372,6 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                             : AppColors.success,
                       ),
                     ],
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Sección: Configuraciones
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Configuraciones',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Selector de zona horaria
-                    DropdownButtonFormField<String>(
-                      value: _commonTimezones.contains(_timezoneController.text)
-                          ? _timezoneController.text
-                          : 'UTC',
-                      decoration: const InputDecoration(
-                        labelText: 'Zona Horaria',
-                        prefixIcon: Icon(Icons.public),
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _commonTimezones.map((String timezone) {
-                        return DropdownMenuItem<String>(
-                          value: timezone,
-                          child: Text(
-                            timezone.split('/').last.replaceAll('_', ' '),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: widget.isLoading
-                          ? null
-                          : (String? value) {
-                              if (value != null) {
-                                _timezoneController.text = value;
-                              }
-                            },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Hora de check-in
-                    CustomTextField(
-                      controller: _checkinStartTimeController,
-                      labelText: 'Hora de Check-in',
-                      prefixIcon: Icons.access_time,
-                      readOnly: true,
-                      enabled: !widget.isLoading,
-                      onTap: _selectCheckinTime,
-                      suffixIcon: const Icon(Icons.schedule),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Offset de notificaciones
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Recordatorio antes del check-in',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<int>(
-                          value: _notificationOffsetMin,
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.notifications),
-                            border: OutlineInputBorder(),
-                            suffixText: 'minutos',
-                          ),
-                          items: [0, 5, 10, 15, 30, 60].map((int value) {
-                            return DropdownMenuItem<int>(
-                              value: value,
-                              child: Text(
-                                value == 0
-                                    ? 'Sin recordatorio'
-                                    : '$value minutos antes',
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: widget.isLoading
-                              ? null
-                              : (int? value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _notificationOffsetMin = value;
-                                    });
-                                  }
-                                },
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),

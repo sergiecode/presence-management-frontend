@@ -137,7 +137,7 @@ class AppConfig {
   /// Etiquetas legibles para tipos de ubicación
   static const Map<String, String> locationLabels = {
     'office': 'Oficina',
-    'home': 'Domicilio',
+    'home': 'Domicilio Declarado',
     'client': 'Cliente',
     'other': 'Domicilio Alternativo',
   };

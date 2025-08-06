@@ -1,5 +1,5 @@
-name: assistance_app
-description: "A new Flutter project."
+name: absistencia
+description: "Aplicación de control de presencia ABSistencia"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -46,6 +46,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_native_splash: ^2.4.0
+  flutter_launcher_icons: ^0.13.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -95,3 +97,28 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Configuración del splash screen
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/absistencia-splash.png
+  fullscreen: false
+
+# Configuración del icono de la aplicación
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/absistencia-icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/absistencia-icon.png"
+  adaptive_icon_padding: 20
+  web:
+    generate: true
+    image_path: "assets/images/absistencia-icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#1976D2"
+  windows:
+    generate: true
+    image_path: "assets/images/absistencia-icon.png"
+    icon_size: 48
