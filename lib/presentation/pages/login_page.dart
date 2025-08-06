@@ -200,54 +200,68 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Maneja el proceso de login
   Future<void> _handleLogin(String email, String password) async {
-  setState(() {
-    _isLoading = true;
-    _errorMessage = null;
-  });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  try {
-    // Usar el AuthProvider para manejar el login
-    final authProvider = context.read<AuthProvider>();
-    
-    // ¡IMPORTANTE! Pasar saveBiometrics: true para que guarde las credenciales
-    final success = await authProvider.login(email, password, saveBiometrics: true);
+    try {
+      // Usar el AuthProvider para manejar el login
+      final authProvider = context.read<AuthProvider>();
+      
+      // ¡IMPORTANTE! Pasar saveBiometrics: true para que guarde las credenciales
+      final success = await authProvider.login(email, password, saveBiometrics: true);
 
-    if (success && mounted) {
-      // Login exitoso - mostrar mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login exitoso'))
-      );
+      if (success && mounted) {
+        // Login exitoso - mostrar mensaje de éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login exitoso'))
+        );
 
-      // Preguntar si quiere activar biometría
-      await _showBiometricActivationDialog();
+        // Preguntar si quiere activar biometría
+        await _showBiometricActivationDialog();
 
-      // Navegar a la página principal
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        // Navegar a la página principal
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      } else {
+        // Login fallido - usar el error específico del AuthProvider
+        if (mounted) {
+          setState(() {
+            String errorMsg = authProvider.error ?? 'Usuario o contraseña incorrectos. Verifica tus datos.';
+            
+            // Si el mensaje contiene información sobre credenciales incorrectas
+            if (errorMsg.toLowerCase().contains('credenciales') ||
+                errorMsg.toLowerCase().contains('unauthorized') ||
+                errorMsg.toLowerCase().contains('invalid') ||
+                errorMsg.toLowerCase().contains('wrong') ||
+                errorMsg.toLowerCase().contains('incorrectas') ||
+                errorMsg.toLowerCase().contains('authentication') ||
+                errorMsg.toLowerCase().contains('login')) {
+              _errorMessage = 'Usuario o contraseña incorrectos. Verifica tus datos.';
+            } else {
+              // Para cualquier otro error, usar el mensaje original del backend
+              _errorMessage = errorMsg;
+            }
+          });
+        }
       }
-    } else {
-      // Login fallido
+    } catch (e) {
+      // Error durante el login
       if (mounted) {
         setState(() {
-          _errorMessage = authProvider.error ?? 'Email o contraseña incorrectos';
+          _errorMessage = 'Error de conexión. Intenta nuevamente.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
         });
       }
     }
-  } catch (e) {
-    // Error durante el login
-    if (mounted) {
-      setState(() {
-        _errorMessage = 'Error de conexión. Intenta nuevamente.';
-      });
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
-}
 
   /// Limpia el mensaje de éxito
   void _clearSuccessMessage() {

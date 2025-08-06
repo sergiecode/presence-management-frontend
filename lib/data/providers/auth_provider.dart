@@ -70,8 +70,16 @@ class AuthProvider with ChangeNotifier {
         return false;
       }
     } catch (e) {
-      print('AuthProvider: Error de conexión durante el login: $e');
-      _setError('Error de conexión. Intenta nuevamente.');
+      print('AuthProvider: Error durante el login: $e');
+      
+      // Extraer el mensaje de error limpio
+      String errorMessage = e.toString();
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring(11);
+      }
+      
+      // Preservar el mensaje específico del AuthService
+      _setError(errorMessage);
       _setLoading(false);
       return false;
     }

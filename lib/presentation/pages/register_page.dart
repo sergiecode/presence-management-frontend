@@ -66,17 +66,47 @@ class _RegisterPageState extends State<RegisterPage> {
           'Registro exitoso. Pendiente de revisión con RH para activar el login.',
         );
       } else {
-        // Registro fallido
+        // Registro fallido - esto no debería llegar aquí si el servicio maneja las excepciones correctamente
         setState(() {
           _errorMessage = 'Error en el registro. Inténtalo nuevamente.';
         });
       }
     } catch (e) {
-      // Error durante el registro
-      setState(() {
-        _errorMessage =
-            'Error de conexión. Verifica tu internet e intenta nuevamente.';
-      });
+      // Manejo específico de errores del backend
+      if (mounted) {
+        setState(() {
+          String errorMsg = e.toString();
+          
+          // Eliminar el prefijo "Exception: " si existe
+          if (errorMsg.startsWith('Exception: ')) {
+            errorMsg = errorMsg.substring(11);
+          }
+          
+          // Verificar si es un error específico de email duplicado
+          if (errorMsg.toLowerCase().contains('email') && 
+              (errorMsg.toLowerCase().contains('existe') || 
+               errorMsg.toLowerCase().contains('registrado') ||
+               errorMsg.toLowerCase().contains('ya existe') ||
+               errorMsg.toLowerCase().contains('already exists'))) {
+            _errorMessage = 'Este email ya está registrado. Por favor usa otro email.';
+          } 
+          // Verificar errores de conexión
+          else if (errorMsg.contains('SocketException') || 
+                   errorMsg.contains('TimeoutException') ||
+                   errorMsg.contains('Error de conexión') ||
+                   errorMsg.contains('Error de red')) {
+            _errorMessage = 'Error de conexión. Verifica tu internet e intenta nuevamente.';
+          }
+          // Otros errores del backend
+          else if (errorMsg.isNotEmpty) {
+            _errorMessage = errorMsg;
+          } 
+          // Error genérico
+          else {
+            _errorMessage = 'Error en el registro. Inténtalo nuevamente.';
+          }
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
