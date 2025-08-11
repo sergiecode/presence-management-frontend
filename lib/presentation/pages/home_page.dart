@@ -56,6 +56,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Configuración de ubicación usando constantes del backend
   List<int> _selectedLocations = [LocationTypes.REMOTE_DECLARED]; // Lista de ubicaciones seleccionadas
   final Map<int, String> _locations = LocationTypes.names;
+  
+  // Nuevas variables para el manejo de selección única vs múltiple
+  String _selectionMode = 'single'; // 'single' o 'multiple'
+  int? _selectedSingleLocation = LocationTypes.REMOTE_DECLARED; // Ubicación cuando está en modo único
+  
+  // Mapa para horarios de ubicaciones múltiples: {locationId: TimeOfDay}
+  Map<int, TimeOfDay> _locationSchedule = {};
 
   // Campos adicionales para "Domicilio Alternativo"
   String? _otherLocationDetail;
@@ -79,6 +86,51 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _otherLocationFloor = null;
         _otherLocationApartment = null;
       }
+    });
+  }
+
+  void _onSelectionModeChanged(String newMode) {
+    if (!mounted) return;
+    setState(() {
+      _selectionMode = newMode;
+      
+      if (newMode == 'single') {
+        // Si cambia a modo único, usar la primera ubicación seleccionada como única
+        if (_selectedLocations.isNotEmpty) {
+          _selectedSingleLocation = _selectedLocations.first;
+          _selectedLocations = [_selectedSingleLocation!];
+        } else {
+          _selectedSingleLocation = LocationTypes.REMOTE_DECLARED;
+          _selectedLocations = [_selectedSingleLocation!];
+        }
+      } else {
+        // Si cambia a modo múltiple, mantener la selección actual
+        if (_selectedSingleLocation != null) {
+          _selectedLocations = [_selectedSingleLocation!];
+        }
+      }
+    });
+  }
+
+  void _onSingleLocationChanged(int locationId) {
+    if (!mounted) return;
+    setState(() {
+      _selectedSingleLocation = locationId;
+      _selectedLocations = [locationId];
+      
+      // Si no es "Domicilio Alternativo", limpiar sus campos
+      if (locationId != LocationTypes.REMOTE_ALTERNATIVE) {
+        _otherLocationDetail = null;
+        _otherLocationFloor = null;
+        _otherLocationApartment = null;
+      }
+    });
+  }
+
+  void _onScheduleChanged(Map<int, TimeOfDay> newSchedule) {
+    if (!mounted) return;
+    setState(() {
+      _locationSchedule = newSchedule;
     });
   }
 
@@ -141,7 +193,53 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Carga el check-in del día actual si existe
+    /// Carga las ubicaciones planificadas del checkin actual
+  Future<void> _loadPlannedLocations() async {
+    if (_todayCheckIn == null) return;
+    
+    try {
+      // Extraer ubicaciones del checkin actual
+      final locations = _todayCheckIn!['locations'];
+      if (locations != null && locations is List) {
+        List<Map<String, dynamic>> plannedLocations = [];
+        
+        for (var location in locations) {
+          if (location is Map<String, dynamic>) {
+            final startTime = location['start_time'];
+            final locationDetail = location['location_detail'] ?? '';
+            final locationType = location['location_type'] ?? 1;
+            
+            // Crear entrada de historial para la ubicación planificada
+            plannedLocations.add({
+              'location_type': locationType,
+              'location_detail': locationDetail,
+              'timestamp': startTime ?? _todayCheckIn!['time'],
+              'description': '$locationDetail (Planificado)',
+              'is_planned': true, // Marcador para distinguir de cambios reales
+            });
+          }
+        }
+        
+        // Ordenar por timestamp
+        plannedLocations.sort((a, b) {
+          final timeA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
+          final timeB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
+          return timeA.compareTo(timeB);
+        });
+        
+        if (mounted) {
+          setState(() {
+            // Combinar ubicaciones planificadas con historial real
+            _locationHistory = [...plannedLocations, ..._locationHistory];
+          });
+        }
+      }
+    } catch (e) {
+      print('Error cargando ubicaciones planificadas: $e');
+    }
+  }
+
+  /// Carga el historial de ubicaciones del día actual si existe
   Future<void> _loadTodayCheckIn() async {
     // _loadTodayCheckIn: Iniciando carga...
     if (!mounted) return;
@@ -246,6 +344,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
 
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+              _selectedSingleLocation = _selectedLocations.first;
               _completedLocationDetail = checkIn['location_detail'];
 
               // Iniciar timer para mostrar duración actual
@@ -259,6 +358,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 '_loadTodayCheckIn: checkoutTime: $checkoutTime, checkoutStatus: $checkoutStatus',
               );
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+              _selectedSingleLocation = _selectedLocations.first;
               _completedLocationDetail = checkIn['location_detail'];
               _isWorking = false;
               _dayCompleted = true;
@@ -275,6 +375,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               // Si hay checkout_time pero no status completed, asumir que está completado
               // (el backend podría no estar actualizando el status correctamente)
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+              _selectedSingleLocation = _selectedLocations.first;
               _completedLocationDetail = checkIn['location_detail'];
               _isWorking = false;
               _dayCompleted =
@@ -314,6 +415,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Cargar historial de ubicaciones si hay una sesión activa o completada
       if (_isWorking || _dayCompleted) {
         _loadLocationHistory();
+        // También cargar las ubicaciones planificadas del checkin actual
+        _loadPlannedLocations();
       }
       
       // Verificar si necesita programar recordatorios de check-in perdido
@@ -450,10 +553,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _startWork() async {
     if (_isProcessing) return;
 
-    // Verificar que al menos una ubicación esté seleccionada
-    if (_selectedLocations.isEmpty) {
-      _showErrorSnackBar('Selecciona al menos una ubicación para trabajar');
-      return;
+    // Determinar las ubicaciones a usar según el modo de selección
+    List<int> locationsToUse;
+    if (_selectionMode == 'single') {
+      if (_selectedSingleLocation == null) {
+        _showErrorSnackBar('Selecciona una ubicación para trabajar');
+        return;
+      }
+      locationsToUse = [_selectedSingleLocation!];
+    } else {
+      // Modo múltiple
+      if (_selectedLocations.isEmpty) {
+        _showErrorSnackBar('Selecciona al menos una ubicación para trabajar');
+        return;
+      }
+      locationsToUse = _selectedLocations;
     }
 
     // Verificar si el día ya está completado
@@ -464,10 +578,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Construir mensaje para el diálogo según cantidad de ubicaciones
     String locationMessage;
-    if (_selectedLocations.length == 1) {
-      locationMessage = _locations[_selectedLocations.first]!;
+    if (locationsToUse.length == 1) {
+      locationMessage = _locations[locationsToUse.first]!;
     } else {
-      locationMessage = 'ubicaciones múltiples: ${_selectedLocations.map((id) => _locations[id]).join(', ')}';
+      // Construir mensaje con horarios para múltiples ubicaciones
+      final locationParts = locationsToUse.map((id) {
+        final locationName = _locations[id];
+        final schedule = _locationSchedule[id];
+        if (schedule != null) {
+          return '$locationName a las ${schedule.format(context)}';
+        } else {
+          return locationName;
+        }
+      }).toList();
+      locationMessage = 'ubicaciones múltiples: ${locationParts.join(', ')}';
     }
 
     // Mostrar diálogo de confirmación
@@ -537,8 +661,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final currentMinutes = currentTime.hour * 60 + currentTime.minute;
           final isLate = currentMinutes > startMinutes;
 
-           // Crear los datos de ubicaciones para enviar al backend (TODAS las ubicaciones seleccionadas)
-          final locationsData = _selectedLocations.map((locationId) {
+           // Crear los datos de ubicaciones para enviar al backend (usando locationsToUse)
+          final locationsData = locationsToUse.map((locationId) {
             String locationDetail = _locations[locationId] ?? 'Desconocido';
             
             // Si es "Domicilio Alternativo", construir la dirección completa
@@ -556,19 +680,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
             }
             
+            // Construir el start_time basado en el horario configurado o la hora actual
+            String startTime;
+            final scheduleTime = _locationSchedule[locationId];
+            if (scheduleTime != null && _selectionMode == 'multiple') {
+              // Si hay horario configurado en modo múltiple, usar ese horario con la fecha actual
+              final scheduledDateTime = DateTime(
+                now.year, 
+                now.month, 
+                now.day, 
+                scheduleTime.hour, 
+                scheduleTime.minute
+              );
+              startTime = CheckInService.toRFC3339(scheduledDateTime);
+            } else {
+              // Para modo único o sin horario específico, usar la hora actual
+              startTime = time;
+            }
+            
             return {
               'location_type': locationId,
               'location_detail': locationDetail,
+              'start_time': startTime,
             };
           }).toList();
 
-          // Los datos para el check-in
+          // Los datos para el check-in en el nuevo formato
           final checkInData = {
-            'date': date,
             'time': time,
-            'locations': locationsData, // Enviar la lista de ubicaciones
-            'gps_lat': 0.0,
-            'gps_long': 0.0,
+            'locations': locationsData, // Lista con location_type, location_detail y start_time
             'notes': '',
             'user_id': userId,
           };
@@ -598,10 +738,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _workStartTime = DateTime.now();
               _workDuration = Duration.zero;
               _todayCheckIn = result;
-              // Actualizar el completed location detail con todas las ubicaciones
-              _completedLocationDetail = _selectedLocations.length == 1 
+              // Actualizar el completed location detail con las ubicaciones usadas
+              _completedLocationDetail = locationsToUse.length == 1 
                 ? locationsData.first['location_detail'] as String?
                 : locationsData.map((loc) => loc['location_detail'] as String).join(', ');
+              
+              // Actualizar _selectedLocations para reflejar lo que se envió
+              _selectedLocations = locationsToUse;
             });
           }
 
@@ -1140,6 +1283,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   '_refreshState: Usuario sigue trabajando (sin checkout_time)',
                 );
                 _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+                _selectedSingleLocation = _selectedLocations.first;
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación del historial si está disponible
                 _isWorking = true;
                 _dayCompleted = false;
@@ -1155,6 +1299,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   '_refreshState: Ubicación final determinada: $actualLocationDetail',
                 );
                 _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+                _selectedSingleLocation = _selectedLocations.first;
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
                 _isWorking = false;
                 _dayCompleted = true;
@@ -1169,6 +1314,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 print('_refreshState: checkoutStatus: $checkoutStatus');
                 // Si hay checkout_time, asumir que está completado independientemente del status
                 _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
+                _selectedSingleLocation = _selectedLocations.first;
                 _completedLocationDetail = actualLocationDetail; // Usar ubicación real del historial
                 _isWorking = false;
                 _dayCompleted = true;
@@ -1297,6 +1443,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onStartWork: _startWork,
                 onStopWork: _stopWork,
                 onLocationChanged: _onLocationChanged,
+                selectionMode: _selectionMode,
+                onSelectionModeChanged: _onSelectionModeChanged,
+                onSingleLocationChanged: _onSingleLocationChanged,
+                selectedSingleLocation: _selectedSingleLocation,
+                locationSchedule: _locationSchedule,
+                onScheduleChanged: _onScheduleChanged,
                 otherLocationDetail: _otherLocationDetail,
                 onOtherLocationChanged: _onOtherLocationChanged,
                 otherLocationFloor: _otherLocationFloor,

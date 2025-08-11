@@ -203,10 +203,6 @@ class CheckInService {
       print('CheckInService: Realizando check-in...');
       print('CheckInService: Datos recibidos: $checkInData');
 
-      // Validar que tenemos date y time
-      if (!checkInData.containsKey('date') || checkInData['date'] == null) {
-        throw Exception('La fecha es obligatoria para el check-in');
-      }
 
       if (!checkInData.containsKey('time') || checkInData['time'] == null) {
         throw Exception('La hora es obligatoria para el check-in');
