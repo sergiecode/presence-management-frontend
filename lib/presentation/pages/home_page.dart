@@ -1038,6 +1038,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     print('Mostrando diálogo de cambio de ubicación');
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (context) => LocationChangeDialog(
         currentLocations: _selectedLocations, // Pasar toda la lista de ubicaciones
         locations: _locations,

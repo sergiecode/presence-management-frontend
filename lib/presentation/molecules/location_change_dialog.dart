@@ -40,11 +40,15 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
       ),
       child: Container(
         padding: const EdgeInsets.all(24),
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        constraints: BoxConstraints(
+          maxWidth: 400,
+          maxHeight: MediaQuery.of(context).size.height * 0.8, // Limitar altura máxima
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Header
             Row(
               children: [
@@ -187,6 +191,7 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
                                       _otherLocationFloor = value;
                                     });
                                   },
+                                  textInputAction: TextInputAction.next,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -202,6 +207,7 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
                                       _otherLocationApartment = value;
                                     });
                                   },
+                                  textInputAction: TextInputAction.done,
                                 ),
                               ),
                             ],
@@ -250,7 +256,8 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
