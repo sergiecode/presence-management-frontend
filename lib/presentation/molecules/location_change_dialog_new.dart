@@ -85,16 +85,13 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
     
     if (_selectedLocationId == LocationTypes.REMOTE_DECLARED) {
       locationDetail = widget.userDeclaredAddress ?? '';
-      print('🏠 DOMICILIO DECLARADO - Enviando al backend:');
-      print('🏠   userDeclaredAddress recibido: "${widget.userDeclaredAddress}"');
-      print('🏠   locationDetail final: "$locationDetail"');
     } else if (_selectedLocationId == LocationTypes.REMOTE_ALTERNATIVE) {
       final addressParts = <String>[
         _alternativeAddress.trim(),
-        if (_alternativeFloor.isNotEmpty) 'Piso ${_alternativeFloor.trim()}',
-        if (_alternativeApartment.isNotEmpty) 'Dpto ${_alternativeApartment.trim()}',
+        if (_alternativeFloor.isNotEmpty) _alternativeFloor.trim(),
+        if (_alternativeApartment.isNotEmpty) _alternativeApartment.trim(),
       ].where((part) => part.isNotEmpty);
-      locationDetail = addressParts.join(', '); // Usar ', ' para consistencia con el resto del código
+      locationDetail = addressParts.join(' - ');
     } else {
       // Buscar en catálogo
       final catalogLocation = widget.catalogLocations.firstWhere(

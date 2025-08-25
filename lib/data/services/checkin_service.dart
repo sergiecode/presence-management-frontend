@@ -698,7 +698,7 @@ class CheckInService {
       print('🔄 CheckInService: Datos de ubicación: $locationData');
       print('🔄 CheckInService: Token presente: ${token.isNotEmpty}');
 
-      // Usar el endpoint correcto encontrado en el backend: PUT /api/checkins/locations
+      // Usar el endpoint correcto: PUT /api/checkins/locations
       final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations';
       print('🔄 CheckInService: URL completa: $url');
 
@@ -707,15 +707,36 @@ class CheckInService {
         'Authorization': 'Bearer $token',
       };
 
-      // Formatear los datos según el backend: { "locations": [{ ... }] }
+      // Formatear los datos según el nuevo formato del backend
+      print('🔄 CheckInService: locationData recibido: $locationData');
+      print('🔄 CheckInService: start_time en locationData: ${locationData['start_time']}');
+      print('🔄 CheckInService: end_time en locationData: ${locationData['end_time']}');
+      
       final requestBody = {
         'locations': [
           {
             'location_type': locationData['location_type'],
-            'location_detail': _buildLocationDetail(locationData),
+            'location_detail': locationData['location_detail'] ?? _buildLocationDetail(locationData),
+            'start_time': locationData['start_time'], // Hora seleccionada por el usuario
+            'end_time': locationData['end_time'], // Hora de fin (opcional)
           }
         ]
       };
+      
+      // Limpiar valores null del requestBody locations
+      final cleanedLocations = requestBody['locations']!.map((location) {
+        final Map<String, dynamic> cleanedLocation = {};
+        location.forEach((key, value) {
+          if (value != null) {
+            cleanedLocation[key] = value;
+          }
+        });
+        return cleanedLocation;
+      }).toList();
+      
+      requestBody['locations'] = cleanedLocations;
+      
+      print('🔄 CheckInService: requestBody limpio: $requestBody');
 
       final jsonBody = json.encode(requestBody);
       print('🔄 CheckInService: Request headers: $headers');

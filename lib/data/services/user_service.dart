@@ -42,6 +42,12 @@ class UserService {
       'email_confirmed': data['email_confirmed'] ?? false,
       'deactivated': data['deactivated'] ?? false,
       'pending_approval': data['pending_approval'] ?? false,
+      // Campos de domicilio declarado
+      'declared_address': data['declared_address'] ?? '',
+      'declared_city': data['declared_city'] ?? '',
+      'declared_state': data['declared_state'] ?? '',
+      'declared_country': data['declared_country'] ?? '',
+      'declared_postal_code': data['declared_postal_code'] ?? '',
     };
   }
 
@@ -98,6 +104,101 @@ class UserService {
         rethrow; // Re-lanzar la excepción original
       }
     }
+  }
+
+  /// Obtener la dirección del domicilio declarado del usuario
+  ///
+  /// Parámetros:
+  /// - [token]: Token de autenticación del usuario
+  ///
+  /// Retorna:
+  /// - [Map<String, dynamic>?]: Dirección del domicilio declarado o null si no está configurada
+  ///
+  /// Excepciones:
+  /// - Puede lanzar [Exception] si hay errores de red o del servidor
+  static Future<Map<String, dynamic>?> getUserDeclaredAddress(String token) async {
+    try {
+      print('UserService: Obteniendo dirección del domicilio declarado...');
+
+      final userData = await getCurrentUser(token);
+      if (userData == null || userData['location'] == null) {
+        print('UserService: No se encontró dirección declarada');
+        return null;
+      }
+
+      final location = userData['location'] as Map<String, dynamic>;
+      
+      // Formatear la dirección según la estructura de la API
+      final declaredAddress = {
+        'calle': location['calle'] ?? '',
+        'numero': location['numero'] ?? '',
+        'piso': location['piso'] ?? '',
+        'ciudad': location['ciudad'] ?? '',
+        'provincia': location['provincia'] ?? '',
+        'codigo_postal': location['codigo_postal'] ?? '',
+        'pais': location['pais'] ?? '',
+      };
+
+      // Verificar que al menos tenga calle y numero
+      if (declaredAddress['calle']!.isEmpty && declaredAddress['numero']!.isEmpty) {
+        print('UserService: Dirección declarada incompleta');
+        return null;
+      }
+
+      print('UserService: Dirección declarada obtenida exitosamente');
+      return declaredAddress;
+
+    } catch (e) {
+      print('UserService: Error al obtener dirección declarada: $e');
+      rethrow;
+    }
+  }
+
+  /// Formatear dirección declarada en texto legible
+  ///
+  /// Parámetros:
+  /// - [addressData]: Datos de la dirección del usuario
+  ///
+  /// Retorna:
+  /// - [String]: Dirección formateada como string
+  static String formatDeclaredAddress(Map<String, dynamic> addressData) {
+    final parts = <String>[];
+    
+    // Calle y número
+    if (addressData['calle']?.isNotEmpty ?? false) {
+      String calleNumero = addressData['calle'];
+      if (addressData['numero']?.isNotEmpty ?? false) {
+        calleNumero += ' ${addressData['numero']}';
+      }
+      parts.add(calleNumero);
+    }
+    
+    // Piso
+    if (addressData['piso']?.isNotEmpty ?? false) {
+      parts.add(addressData['piso']);
+    }
+    
+    // Ciudad
+    if (addressData['ciudad']?.isNotEmpty ?? false) {
+      parts.add(addressData['ciudad']);
+    }
+    
+    // Provincia
+    if (addressData['provincia']?.isNotEmpty ?? false) {
+      parts.add(addressData['provincia']);
+    }
+    
+    // Código postal
+    if (addressData['codigo_postal']?.isNotEmpty ?? false) {
+      parts.add('CP ${addressData['codigo_postal']}');
+    }
+    
+    // País
+    if (addressData['pais']?.isNotEmpty ?? false) {
+      parts.add(addressData['pais']);
+    }
+    
+    return parts.join(', ');
   }
 
   /// Actualizar perfil del usuario actual usando PATCH /me
@@ -507,5 +608,45 @@ class UserService {
     }
 
     return initials.isEmpty ? 'U' : initials;
+  }
+
+  /// Construir dirección completa del domicilio declarado
+  ///
+  /// Parámetros:
+  /// - [userData]: Datos del usuario
+  ///
+  /// Retorna:
+  /// - [String]: Dirección completa formateada o cadena vacía si no hay dirección
+  static String getDeclaredAddress(Map<String, dynamic> userData) {
+    final address = userData['declared_address']?.toString().trim() ?? '';
+    final city = userData['declared_city']?.toString().trim() ?? '';
+    final state = userData['declared_state']?.toString().trim() ?? '';
+    final country = userData['declared_country']?.toString().trim() ?? '';
+    final postalCode = userData['declared_postal_code']?.toString().trim() ?? '';
+
+    if (address.isEmpty) {
+      return '';
+    }
+
+    List<String> addressParts = [address];
+
+    if (city.isNotEmpty) {
+      addressParts.add(city);
+    }
+
+    if (state.isNotEmpty) {
+      addressParts.add(state);
+    }
+
+    if (country.isNotEmpty) {
+      addressParts.add(country);
+    }
+
+    // Agregar código postal si está disponible
+    if (postalCode.isNotEmpty) {
+      addressParts.add('($postalCode)');
+    }
+
+    return addressParts.join(', ');
   }
 }

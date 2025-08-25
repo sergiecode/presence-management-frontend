@@ -6,11 +6,12 @@ import 'package:provider/provider.dart';
 import '../../data/services/checkin_service.dart';
 import '../../data/services/user_service.dart';
 import '../../data/services/notification_service.dart';
+import '../../data/services/catalog_service.dart';
 import '../../data/providers/auth_provider.dart';
+import '../../data/models/work_location.dart';
 import '../../core/constants/location_types.dart';
 import '../atoms/atoms.dart';
 import '../molecules/molecules.dart';
-import '../molecules/location_change_dialog.dart';
 import '../organisms/organisms.dart';
 
 // Importaciones de páginas refactorizadas
@@ -68,6 +69,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _otherLocationDetail;
   String? _otherLocationFloor;
   String? _otherLocationApartment;
+
+  // Nuevos campos para la funcionalidad mejorada
+  /// Ubicaciones del catálogo (oficinas, clientes, etc.)
+  List<CatalogLocation> _catalogLocations = [];
+  
+  /// Dirección del domicilio declarado del usuario
+  String? _userDeclaredAddress;
+  
+  /// Lista de ubicaciones adicionales agregadas durante el día
+  List<WorkLocation> _additionalLocations = [];
+  
+  // /// Datos del usuario actual
+  // Map<String, dynamic>? _userData;
 
   // Campo para almacenar el location_detail cuando la jornada está completada
   String? _completedLocationDetail;
@@ -155,6 +169,92 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  // Funciones para manejar ubicaciones adicionales
+  void _onAddAdditionalLocation(WorkLocation location) {
+    if (!mounted) return;
+    setState(() {
+      _additionalLocations.add(location);
+    });
+  }
+
+  void _onRemoveAdditionalLocation(int index) {
+    if (!mounted) return;
+    if (index >= 0 && index < _additionalLocations.length) {
+      setState(() {
+        _additionalLocations.removeAt(index);
+      });
+    }
+  }
+
+  void _onUpdateAdditionalLocation(int index, WorkLocation location) {
+    if (!mounted) return;
+    if (index >= 0 && index < _additionalLocations.length) {
+      setState(() {
+        _additionalLocations[index] = location;
+      });
+    }
+  }
+
+  /// Carga las ubicaciones del catálogo
+  Future<void> _loadCatalogLocations() async {
+    try {
+      print('HomePage: Iniciando carga de ubicaciones del catálogo...');
+      final catalogLocations = await CatalogService.getLocations(widget.token);
+      
+      if (mounted) {
+        setState(() {
+          _catalogLocations = catalogLocations;
+        });
+        print('HomePage: ✅ ${catalogLocations.length} ubicaciones del catálogo cargadas exitosamente:');
+        for (final location in catalogLocations) {
+          print('  - ID: ${location.id}, Nombre: ${location.name}, Activa: ${location.isActive}');
+        }
+      }
+    } catch (e) {
+      print('HomePage: ❌ Error cargando ubicaciones del catálogo: $e');
+      // No mostrar error al usuario, las ubicaciones del catálogo son opcionales
+      // pero seguir funcionando con las ubicaciones básicas
+    }
+  }
+
+  /// Carga los datos del usuario para obtener el domicilio declarado
+  Future<void> _loadUserData() async {
+    try {
+      print('HomePage: Iniciando carga de datos del usuario...');
+      final userData = await UserService.getCurrentUser(widget.token);
+      
+      if (userData != null && mounted) {
+        setState(() {
+          // _userData = userData; // Comentado - no se usa actualmente
+        });
+        print('HomePage: ✅ Datos del usuario cargados exitosamente');
+        
+        // Cargar dirección declarada por separado usando el nuevo endpoint
+        print('HomePage: 🔍 Cargando domicilio declarado...');
+        try {
+          final declaredAddressData = await UserService.getUserDeclaredAddress(widget.token);
+          print('HomePage: 📍 Datos raw del domicilio: $declaredAddressData');
+          if (declaredAddressData != null && mounted) {
+            final formattedAddress = UserService.formatDeclaredAddress(declaredAddressData);
+            print('HomePage: 📍 Dirección formateada: "$formattedAddress"');
+            setState(() {
+              _userDeclaredAddress = formattedAddress.isNotEmpty ? formattedAddress : null;
+            });
+            print('HomePage: ✅ Domicilio declarado establecido: ${_userDeclaredAddress ?? "No configurado"}');
+          } else {
+            print('HomePage: ❌ No se pudo obtener datos del domicilio declarado');
+          }
+        } catch (e) {
+          print('HomePage: ⚠️ Error cargando domicilio declarado: $e');
+          // No bloquear la UI, el domicilio declarado es opcional
+        }
+      }
+    } catch (e) {
+      print('HomePage: ❌ Error cargando datos del usuario: $e');
+      // No bloquear la UI, el domicilio declarado es opcional
+    }
+  }
+
   // Datos de la sesión
   Map<String, dynamic>? _todayCheckIn;
   final List<Map<String, dynamic>> _workHistory = [];
@@ -173,6 +273,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadTodayCheckIn();
     _initializeNotificationService();
+    // Cargar catálogos y datos del usuario en paralelo
+    _loadCatalogLocations();
+    _loadUserData();
   }
 
   @override
@@ -258,6 +361,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // _loadTodayCheckIn: Resultado del servicio: $checkIn
 
         if (checkIn != null) {
+          // DIAGNÓSTICO COMPLETO DEL CHECK-IN
+          print('=== 🔍 DIAGNÓSTICO DEL CHECK-IN ===');
+          print('📅 ID: ${checkIn['id']}');
+          print('📅 Fecha: ${checkIn['date']}');
+          print('⏰ check_in_time: ${checkIn['check_in_time']}');
+          print('⏰ time: ${checkIn['time']}');
+          print('🚪 checkout_time: ${checkIn['checkout_time']}');
+          print('🚪 check_out_time: ${checkIn['check_out_time']}');
+          print('📊 checkout_status: ${checkIn['checkout_status']}');
+          print('🏠 location_type: ${checkIn['location_type']}');
+          print('📍 location_detail: ${checkIn['location_detail']}');
+          print('🗂️ locations: ${checkIn['locations']}');
+          print('⏱️ created_at: ${checkIn['created_at']}');
+          print('⏱️ updated_at: ${checkIn['updated_at']}');
+          print('=== FIN DIAGNÓSTICO ===');
+          
           print('_loadTodayCheckIn: checkIn encontrado: $checkIn');
           print(
             '_loadTodayCheckIn: checkout_time: ${checkIn['checkout_time']}',
@@ -268,6 +387,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           print(
             '_loadTodayCheckIn: checkout_status: ${checkIn['checkout_status']}',
           );
+
+          final checkoutTime = checkIn['checkout_time'] ?? checkIn['check_out_time'];
+
+          // Para jornadas completadas, obtener la ubicación real del historial
+          String actualLocationDetail = checkIn['location_detail'];
+          if (checkoutTime != null) {
+            print('_loadTodayCheckIn: Jornada completada - obteniendo ubicación real del historial...');
+            try {
+              final locationHistory = await CheckInService.getSessionLocationHistory(token);
+              if (locationHistory.isNotEmpty) {
+                // Buscar la ubicación más reciente (última del día)
+                final lastLocation = locationHistory.last;
+                actualLocationDetail = lastLocation['location_detail'] ?? actualLocationDetail;
+                print('_loadTodayCheckIn: Ubicación de fin de jornada desde historial: $actualLocationDetail');
+              }
+            } catch (e) {
+              print('_loadTodayCheckIn: Error obteniendo historial para ubicación final: $e');
+              // Continuar con la ubicación del check-in si hay error
+            }
+          }
 
           setState(() {
             _todayCheckIn = checkIn;
@@ -345,7 +484,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _selectedSingleLocation = _selectedLocations.first;
-              _completedLocationDetail = checkIn['location_detail'];
+              _completedLocationDetail = actualLocationDetail;
 
               // Iniciar timer para mostrar duración actual
               _startWorkTimer();
@@ -359,7 +498,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               );
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _selectedSingleLocation = _selectedLocations.first;
-              _completedLocationDetail = checkIn['location_detail'];
+              _completedLocationDetail = actualLocationDetail;
               _isWorking = false;
               _dayCompleted = true;
               _workStartTime = null;
@@ -376,7 +515,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               // (el backend podría no estar actualizando el status correctamente)
               _selectedLocations = [checkIn['location_type'] ?? LocationTypes.REMOTE_DECLARED];
               _selectedSingleLocation = _selectedLocations.first;
-              _completedLocationDetail = checkIn['location_detail'];
+              _completedLocationDetail = actualLocationDetail;
               _isWorking = false;
               _dayCompleted =
                   true; // Cambio: considerar completado si hay checkout_time
@@ -393,8 +532,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           });
         } else {
           print('_loadTodayCheckIn: No hay check-in para hoy');
-          // Reset estado cuando no hay check-in
-          _dayCompleted = false;
+          // Reset completo del estado cuando no hay check-in
+          setState(() {
+            _dayCompleted = false;
+            _isWorking = false;
+            _workStartTime = null;
+            _workDuration = Duration.zero;
+            _todayCheckIn = null;
+            _completedLocationDetail = null;
+            _selectedLocations = [];
+            _selectedSingleLocation = null;
+          });
         }
       } else {
         print('_loadTodayCheckIn: No hay token disponible');
@@ -433,7 +581,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       setState(() {
-        _workDuration = DateTime.now().difference(_workStartTime!);
+        // Usar UTC para evitar problemas de zona horaria con el servidor
+        _workDuration = DateTime.now().toUtc().difference(_workStartTime!.toUtc());
       });
     });
   }
@@ -549,25 +698,60 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Construye el mensaje de ubicaciones para mostrar en el diálogo de confirmación
+  String _buildLocationMessage() {
+    List<String> locationParts = [];
+
+    // Agregar la ubicación principal
+    String primaryLocationName = _getLocationName(_selectedSingleLocation!);
+    locationParts.add(primaryLocationName);
+
+    // Agregar ubicaciones adicionales con horarios
+    for (final additionalLocation in _additionalLocations) {
+      String additionalLocationName = _getLocationName(additionalLocation.locationTypeId);
+      String timeRange = '${additionalLocation.startTime.format(context)}';
+      if (additionalLocation.endTime != null) {
+        timeRange += ' - ${additionalLocation.endTime!.format(context)}';
+      }
+      locationParts.add('$additionalLocationName ($timeRange)');
+    }
+
+    if (locationParts.length == 1) {
+      return locationParts.first;
+    } else {
+      // Usar presente si ya está trabajando, futuro si va a empezar
+      final prefix = _isWorking ? 'Trabajando en' : 'Trabajarás en';
+      return '$prefix:\n${locationParts.map((part) => '• $part').join('\n')}';
+    }
+  }
+
+  /// Obtiene el nombre de una ubicación por su ID
+  String _getLocationName(int locationId) {
+    if (locationId == LocationTypes.REMOTE_DECLARED) {
+      return 'Domicilio Declarado';
+    } else if (locationId == LocationTypes.REMOTE_ALTERNATIVE) {
+      return 'Domicilio Alternativo';
+    } else {
+      // Buscar en el catálogo
+      try {
+        final catalogLocation = _catalogLocations.firstWhere(
+          (cat) => cat.id == locationId,
+        );
+        return catalogLocation.name;
+      } catch (e) {
+        return 'Ubicación $locationId';
+      }
+    }
+  }
+
   /// Inicia la jornada laboral
   Future<void> _startWork() async {
     if (_isProcessing) return;
 
-    // Determinar las ubicaciones a usar según el modo de selección
-    List<int> locationsToUse;
-    if (_selectionMode == 'single') {
-      if (_selectedSingleLocation == null) {
-        _showErrorSnackBar('Selecciona una ubicación para trabajar');
-        return;
-      }
-      locationsToUse = [_selectedSingleLocation!];
-    } else {
-      // Modo múltiple
-      if (_selectedLocations.isEmpty) {
-        _showErrorSnackBar('Selecciona al menos una ubicación para trabajar');
-        return;
-      }
-      locationsToUse = _selectedLocations;
+    // Validar que hay una ubicación principal seleccionada
+    if (_selectedSingleLocation == null) {
+      _showErrorSnackBar('Selecciona una ubicación para trabajar');
+      return;
     }
 
     // Verificar si el día ya está completado
@@ -576,23 +760,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    // Construir mensaje para el diálogo según cantidad de ubicaciones
-    String locationMessage;
-    if (locationsToUse.length == 1) {
-      locationMessage = _locations[locationsToUse.first]!;
-    } else {
-      // Construir mensaje con horarios para múltiples ubicaciones
-      final locationParts = locationsToUse.map((id) {
-        final locationName = _locations[id];
-        final schedule = _locationSchedule[id];
-        if (schedule != null) {
-          return '$locationName a las ${schedule.format(context)}';
-        } else {
-          return locationName;
-        }
-      }).toList();
-      locationMessage = 'ubicaciones múltiples: ${locationParts.join(', ')}';
-    }
+    // Construir mensaje para el diálogo de confirmación
+    String locationMessage = _buildLocationMessage();
 
     // Mostrar diálogo de confirmación
     final confirm = await WorkConfirmationDialog.showStartWorkDialog(
@@ -661,49 +830,63 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final currentMinutes = currentTime.hour * 60 + currentTime.minute;
           final isLate = currentMinutes > startMinutes;
 
-           // Crear los datos de ubicaciones para enviar al backend (usando locationsToUse)
-          final locationsData = locationsToUse.map((locationId) {
-            String locationDetail = _locations[locationId] ?? 'Desconocido';
-            
-            // Si es "Domicilio Alternativo", construir la dirección completa
-            if (locationId == LocationTypes.REMOTE_ALTERNATIVE && _otherLocationDetail != null) {
-              locationDetail = _otherLocationDetail!;
-              
-              // Agregar piso si está disponible
-              if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
-                locationDetail += ', Piso $_otherLocationFloor';
-              }
-              
-              // Agregar departamento si está disponible
-              if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
-                locationDetail += ', Dpto $_otherLocationApartment';
-              }
+           // Crear los datos de ubicaciones para enviar al backend
+          List<Map<String, dynamic>> locationsData = [];
+          
+          // 1. Agregar la ubicación principal seleccionada
+          final primaryLocationId = _selectedSingleLocation!;
+          String primaryLocationDetail;
+          
+          // Determinar el location_detail basado en el tipo de ubicación
+          print('HomePageDebug: Determinando location_detail para locationId: $primaryLocationId');
+          print('HomePageDebug: LocationTypes.REMOTE_DECLARED = ${LocationTypes.REMOTE_DECLARED}');
+          print('HomePageDebug: _userDeclaredAddress = "${_userDeclaredAddress}"');
+          
+          if (primaryLocationId == LocationTypes.REMOTE_DECLARED && _userDeclaredAddress != null) {
+            // Usar domicilio declarado del usuario
+            primaryLocationDetail = _userDeclaredAddress!;
+            print('HomePageDebug: ✅ Usando domicilio declarado: "$primaryLocationDetail"');
+          } else if (primaryLocationId == LocationTypes.REMOTE_DECLARED && _userDeclaredAddress == null) {
+            // Fallback si no hay domicilio declarado
+            primaryLocationDetail = 'Domicilio Declarado';
+            print('HomePageDebug: ⚠️ FALLBACK: _userDeclaredAddress es null, usando placeholder: "$primaryLocationDetail"');
+          } else if (primaryLocationId == LocationTypes.REMOTE_ALTERNATIVE && _otherLocationDetail != null) {
+            // Usar domicilio alternativo con campos adicionales
+            primaryLocationDetail = _otherLocationDetail!;
+            if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
+              primaryLocationDetail += ', Piso $_otherLocationFloor';
             }
-            
-            // Construir el start_time basado en el horario configurado o la hora actual
-            String startTime;
-            final scheduleTime = _locationSchedule[locationId];
-            if (scheduleTime != null && _selectionMode == 'multiple') {
-              // Si hay horario configurado en modo múltiple, usar ese horario con la fecha actual
-              final scheduledDateTime = DateTime(
-                now.year, 
-                now.month, 
-                now.day, 
-                scheduleTime.hour, 
-                scheduleTime.minute
-              );
-              startTime = CheckInService.toRFC3339(scheduledDateTime);
-            } else {
-              // Para modo único o sin horario específico, usar la hora actual
-              startTime = time;
+            if (_otherLocationApartment != null && _otherLocationApartment!.isNotEmpty) {
+              primaryLocationDetail += ', Dpto $_otherLocationApartment';
             }
-            
-            return {
-              'location_type': locationId,
-              'location_detail': locationDetail,
-              'start_time': startTime,
-            };
-          }).toList();
+          } else if (primaryLocationId >= 1000) {
+            // Es una ubicación del catálogo (IDs altos)
+            final catalogLocation = _catalogLocations.firstWhere(
+              (cat) => cat.id == primaryLocationId,
+              orElse: () => CatalogLocation(id: primaryLocationId, name: 'Ubicación del catálogo', isActive: true),
+            );
+            primaryLocationDetail = catalogLocation.name;
+          } else {
+            // Ubicaciones estándar
+            primaryLocationDetail = _locations[primaryLocationId] ?? 'Desconocido';
+          }
+          
+          // Agregar la ubicación principal
+          print('HomePageDebug: 📍 Agregando ubicación principal:');
+          print('HomePageDebug:    location_type = $primaryLocationId');
+          print('HomePageDebug:    location_detail = "$primaryLocationDetail"');
+          print('HomePageDebug:    start_time = "$time"');
+          
+          locationsData.add({
+            'location_type': primaryLocationId,
+            'location_detail': primaryLocationDetail,
+            'start_time': time, // Siempre empieza ahora
+          });
+          
+          // 2. Agregar ubicaciones adicionales con sus horarios
+          for (final additionalLocation in _additionalLocations) {
+            locationsData.add(additionalLocation.toJson());
+          }
 
           // Los datos para el check-in en el nuevo formato
           final checkInData = {
@@ -738,13 +921,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _workStartTime = DateTime.now();
               _workDuration = Duration.zero;
               _todayCheckIn = result;
-              // Actualizar el completed location detail con las ubicaciones usadas
-              _completedLocationDetail = locationsToUse.length == 1 
-                ? locationsData.first['location_detail'] as String?
-                : locationsData.map((loc) => loc['location_detail'] as String).join(', ');
+              // Para jornada finalizada, usar el location_detail del último elemento del array locations
+              _completedLocationDetail = locationsData.isNotEmpty 
+                ? locationsData.last['location_detail'] as String?
+                : null;
               
-              // Actualizar _selectedLocations para reflejar lo que se envió
-              _selectedLocations = locationsToUse;
+              // Ya no necesitamos actualizar _selectedLocations ya que usamos el nuevo sistema
+              // _selectedLocations = locationsToUse;
             });
           }
 
@@ -771,6 +954,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Termina la jornada laboral
   Future<void> _stopWork() async {
+    print('🔄 _stopWork iniciado');
+    print('🔄 _stopWork - _workStartTime: $_workStartTime');
+    print('🔄 _stopWork - _isProcessing: $_isProcessing');
+    print('🔄 _stopWork - _selectedLocations: $_selectedLocations');
+    print('🔄 _stopWork - _locations: $_locations');
+    
     if (_workStartTime == null || _isProcessing) return;
 
     final currentTime = DateTime.now();
@@ -779,10 +968,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Construir mensaje para el diálogo según cantidad de ubicaciones
     String locationMessage;
     if (_selectedLocations.length == 1) {
-      locationMessage = _locations[_selectedLocations.first]!;
+      final selectedId = _selectedLocations.first;
+      print('🔄 _stopWork - selectedId: $selectedId');
+      print('🔄 _stopWork - _locations[selectedId]: ${_locations[selectedId]}');
+      locationMessage = _locations[_selectedLocations.first] ?? 'Ubicación desconocida';
     } else {
-      locationMessage = 'ubicaciones múltiples: ${_selectedLocations.map((id) => _locations[id]).join(', ')}';
+      locationMessage = 'ubicaciones múltiples: ${_selectedLocations.map((id) => _locations[id] ?? 'Ubicación $id').join(', ')}';
     }
+    
+    print('🔄 _stopWork - locationMessage: $locationMessage');
 
     // Mostrar diálogo de confirmación
     final confirm = await WorkConfirmationDialog.showStopWorkDialog(
@@ -827,6 +1021,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final locationId = _selectedLocations.first;
               if (locationId == LocationTypes.REMOTE_ALTERNATIVE && 
                   _otherLocationDetail != null && _otherLocationDetail!.isNotEmpty) {
+                // Para domicilio alternativo, construir dirección completa
                 currentLocationDetail = _otherLocationDetail!;
                 if (_otherLocationFloor != null && _otherLocationFloor!.isNotEmpty) {
                   currentLocationDetail += ', Piso $_otherLocationFloor';
@@ -835,10 +1030,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   currentLocationDetail += ', Dpto $_otherLocationApartment';
                 }
               } else {
-                currentLocationDetail = _locations[locationId] ?? 'Ubicación desconocida';
+                // Para otras ubicaciones, buscar primero en ubicaciones estáticas, luego en catálogo
+                String? locationName = _locations[locationId];
+                if (locationName == null) {
+                  // Buscar en catálogo
+                  try {
+                    final catalogLocation = _catalogLocations.firstWhere((cat) => cat.id == locationId);
+                    locationName = catalogLocation.name;
+                  } catch (e) {
+                    locationName = 'Ubicación $locationId';
+                  }
+                }
+                currentLocationDetail = locationName;
               }
             } else {
-              currentLocationDetail = _selectedLocations.map((id) => _locations[id]).join(', ');
+              // Para múltiples ubicaciones (esto puede pasar si iniciaste con múltiples ubicaciones)
+              currentLocationDetail = _selectedLocations.map((id) {
+                String? locationName = _locations[id];
+                if (locationName == null) {
+                  // Buscar en catálogo
+                  try {
+                    final catalogLocation = _catalogLocations.firstWhere((cat) => cat.id == id);
+                    return catalogLocation.name;
+                  } catch (e) {
+                    return 'Ubicación $id';
+                  }
+                }
+                return locationName;
+              }).join(', ');
             }
             
             print('_stopWork: Terminando jornada en ubicación actual: $currentLocationDetail');
@@ -928,10 +1147,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _todayCheckIn!['check_in_time'] ?? _todayCheckIn!['time'];
 
         if (checkinTime != null) {
-          // Parsear hora de inicio
+          // Parsear hora de inicio - asumir que viene en UTC del servidor
           DateTime startTime;
           if (checkinTime.toString().contains('T')) {
             startTime = DateTime.parse(checkinTime.toString());
+            // Si no tiene información de zona, asumimos UTC
+            if (!checkinTime.toString().endsWith('Z') && !checkinTime.toString().contains('+')) {
+              startTime = DateTime.parse(checkinTime.toString() + 'Z');
+            }
           } else {
             startTime = DateTime.parse(
               '${_todayCheckIn!['date']} $checkinTime',
@@ -943,13 +1166,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             DateTime endTime;
             if (checkoutTime.toString().contains('T')) {
               endTime = DateTime.parse(checkoutTime.toString());
+              // Si no tiene información de zona, asumimos UTC
+              if (!checkoutTime.toString().endsWith('Z') && !checkoutTime.toString().contains('+')) {
+                endTime = DateTime.parse(checkoutTime.toString() + 'Z');
+              }
             } else {
               endTime = DateTime.parse(
                 '${_todayCheckIn!['date']} $checkoutTime',
               );
             }
 
-            final sessionDuration = endTime.difference(startTime);
+            // Calcular diferencia en UTC para evitar problemas de zona horaria
+            final sessionDuration = endTime.toUtc().difference(startTime.toUtc());
             totalTime += sessionDuration;
             print(
               '_getTodayWorkTime: Jornada completada - ${sessionDuration.inHours}h ${sessionDuration.inMinutes.remainder(60)}m',
@@ -973,13 +1201,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     return totalTime;
   }
-
-/*   /// Cambia la ubicación seleccionada
-  void _onLocationChanged(int newLocation) {
-    setState(() {
-      _selectedLocation = newLocation;
-    });
-  } */
 
   /// Muestra el menú de navegación
   void _showMenu() {
@@ -1040,24 +1261,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: true,
       builder: (context) => LocationChangeDialog(
-        currentLocations: _selectedLocations, // Pasar toda la lista de ubicaciones
-        locations: _locations,
-        onLocationChanged: _changeLocationDuringWork,
+        catalogLocations: _catalogLocations, // Lista de ubicaciones del catálogo
+        userDeclaredAddress: _userDeclaredAddress, // Dirección del domicilio declarado
+        currentLocations: _selectedLocations, // Ubicaciones actualmente seleccionadas
+        onLocationSelected: _changeLocationDuringWork, // Callback con WorkLocation
       ),
     );
   }
 
   /// Cambia la ubicación durante la jornada laboral
-  Future<void> _changeLocationDuringWork(
-    int newLocation, {
-    String? address,
-    String? floor,
-    String? apartment,
-  }) async {
-    print('🔄 Cambiando ubicación durante trabajo a: $newLocation');
-    print('   - Dirección: $address');
-    print('   - Piso: $floor');
-    print('   - Depto: $apartment');
+  Future<void> _changeLocationDuringWork(WorkLocation newLocation) async {
+    print('🔄 Cambiando ubicación durante trabajo a: ${newLocation.locationTypeId}');
+    print('   - Detalle: ${newLocation.locationDetail}');
+    print('   - Hora inicio: ${newLocation.startTime.format(context)}');
+    print('   - Hora fin: ${newLocation.endTime?.format(context) ?? 'Sin límite'}');
     print('   - ¿Usuario trabajando?: $_isWorking');
     print('   - ¿Procesando?: $_isProcessing');
 
@@ -1086,24 +1303,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
 
       // Preparar datos de la nueva ubicación
+      final today = DateTime.now();
+      final userSelectedStartTime = DateTime(
+        today.year,
+        today.month,
+        today.day,
+        newLocation.startTime.hour,
+        newLocation.startTime.minute,
+      );
+      
+      // Si hay endTime, también prepararlo
+      DateTime? userSelectedEndTime;
+      if (newLocation.endTime != null) {
+        userSelectedEndTime = DateTime(
+          today.year,
+          today.month,
+          today.day,
+          newLocation.endTime!.hour,
+          newLocation.endTime!.minute,
+        );
+      }
+      
       final Map<String, dynamic> locationData = {
-        'location_type': newLocation,
+        'location_type': newLocation.locationTypeId,
+        'location_detail': newLocation.locationDetail,
+        'start_time': userSelectedStartTime.toIso8601String(), // Usar el horario elegido por el usuario
       };
+      
+      // Agregar end_time solo si está presente
+      if (userSelectedEndTime != null) {
+        locationData['end_time'] = userSelectedEndTime.toIso8601String();
+      }
 
       // Agregar detalles adicionales si es necesario
-      if (newLocation == LocationTypes.REMOTE_ALTERNATIVE) {
-        if (address != null && address.isNotEmpty) {
-          locationData['address'] = address;
+      if (newLocation.locationTypeId == LocationTypes.REMOTE_ALTERNATIVE) {
+        // Extraer componentes de dirección del locationDetail
+        final addressParts = newLocation.locationDetail.split(', ');
+        if (addressParts.isNotEmpty) {
+          locationData['address'] = addressParts[0];
         }
-        if (floor != null && floor.isNotEmpty) {
-          locationData['floor'] = floor;
-        }
-        if (apartment != null && apartment.isNotEmpty) {
-          locationData['apartment'] = apartment;
+        
+        // Buscar piso y apartamento en los detalles
+        for (final part in addressParts) {
+          if (part.startsWith('Piso ')) {
+            locationData['floor'] = part.substring(5);
+          } else if (part.startsWith('Dpto ')) {
+            locationData['apartment'] = part.substring(5);
+          }
         }
       }
 
       print('📍 Datos de ubicación a enviar: $locationData');
+      print('📍 start_time: ${locationData['start_time']}');
+      print('📍 end_time: ${locationData['end_time'] ?? 'No especificado'}');
 
       // Llamar al servicio para cambiar ubicación durante trabajo
       final response = await CheckInService.changeLocationDuringWork(token, locationData);
@@ -1112,38 +1364,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       if (response != null && response['success'] == true) {
         print('✅ Ubicación cambiada exitosamente');
+        print('📊 DEBUGGING - Respuesta completa del servidor: $response');
         
-        // Construir el location_detail correcto
-        String newLocationDetail;
-        if (newLocation == LocationTypes.REMOTE_ALTERNATIVE && address != null && address.isNotEmpty) {
-          newLocationDetail = address;
-          if (floor != null && floor.isNotEmpty) {
-            newLocationDetail += ', Piso $floor';
-          }
-          if (apartment != null && apartment.isNotEmpty) {
-            newLocationDetail += ', Dpto $apartment';
-          }
-          print('📍 Nueva ubicación construida para domicilio alternativo: $newLocationDetail');
-        } else {
-          newLocationDetail = _locations[newLocation] ?? '';
-          print('📍 Nueva ubicación para tipo estándar: $newLocationDetail');
-        }
+        // El detalle ya viene en newLocation.locationDetail
+        final String newLocationDetail = newLocation.locationDetail;
+        print('📍 Nueva ubicación: $newLocationDetail');
+        print('📍 DEBUGGING - newLocation completo: ${newLocation.toString()}');
         
         // Actualizar estado local
         if (mounted) {
           setState(() {
             print('📍 Actualizando estado local con:');
-            print('   - newLocation: $newLocation');
+            print('   - newLocationTypeId: ${newLocation.locationTypeId}');
             print('   - newLocationDetail: $newLocationDetail');
-            print('   - address: $address');
-            print('   - floor: $floor');
-            print('   - apartment: $apartment');
+            print('   - ANTES - _selectedLocations: $_selectedLocations');
+            print('   - ANTES - _selectedSingleLocation: $_selectedSingleLocation');
+            print('   - ANTES - _additionalLocations: ${_additionalLocations.map((l) => l.locationTypeId).toList()}');
             
-            _selectedLocations = [newLocation];
-            if (newLocation == LocationTypes.REMOTE_ALTERNATIVE) {
-              _otherLocationDetail = address ?? '';
-              _otherLocationFloor = floor ?? '';
-              _otherLocationApartment = apartment ?? '';
+            // REEMPLAZAR TODAS las ubicaciones con la nueva ubicación
+            _selectedLocations = [newLocation.locationTypeId];
+            _selectedSingleLocation = newLocation.locationTypeId;
+            _additionalLocations.clear(); // ¡IMPORTANTE! Limpiar ubicaciones adicionales
+            
+            if (newLocation.locationTypeId == LocationTypes.REMOTE_ALTERNATIVE) {
+              // Extraer componentes para almacenamiento local
+              final addressParts = newLocation.locationDetail.split(', ');
+              _otherLocationDetail = addressParts.isNotEmpty ? addressParts[0] : '';
+              _otherLocationFloor = '';
+              _otherLocationApartment = '';
+              
+              // Buscar piso y apartamento
+              for (final part in addressParts) {
+                if (part.startsWith('Piso ')) {
+                  _otherLocationFloor = part.substring(5);
+                } else if (part.startsWith('Dpto ')) {
+                  _otherLocationApartment = part.substring(5);
+                }
+              }
+              
               print('📍 Estado local de domicilio alternativo actualizado:');
               print('   - _otherLocationDetail: $_otherLocationDetail');
               print('   - _otherLocationFloor: $_otherLocationFloor');
@@ -1156,14 +1414,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             
             // Actualizar también el check-in local con la nueva ubicación
             if (_todayCheckIn != null) {
-              _todayCheckIn!['location_type'] = newLocation;
+              _todayCheckIn!['location_type'] = newLocation.locationTypeId;
               _todayCheckIn!['location_detail'] = newLocationDetail;
-              print('📍 Check-in local actualizado: location_type=$newLocation, location_detail=$newLocationDetail');
+              print('📍 Check-in local actualizado: location_type=${newLocation.locationTypeId}, location_detail=$newLocationDetail');
             }
             
             // Actualizar el completed location detail para cuando termine la jornada
             _completedLocationDetail = newLocationDetail;
             print('📍 _completedLocationDetail actualizado: $_completedLocationDetail');
+            
+            print('   - DESPUÉS - _selectedLocations: $_selectedLocations');
+            print('   - DESPUÉS - _selectedSingleLocation: $_selectedSingleLocation');
+            print('   - DESPUÉS - _additionalLocations: ${_additionalLocations.map((l) => l.locationTypeId).toList()}');
+            print('   - DESPUÉS - _otherLocationDetail: $_otherLocationDetail');
+            print('   - DESPUÉS - _completedLocationDetail: $_completedLocationDetail');
           });
         }
 
@@ -1175,6 +1439,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
         // Refrescar historial de ubicaciones (pero NO el estado principal para evitar pisar la dirección)
         await _loadLocationHistory();
+        
+        // TEMPORALMENTE COMENTADO: Esto podría estar sobrescribiendo el cambio con datos viejos
+        // await _loadTodayCheckIn();
+        
+        // Cerrar el diálogo si sigue abierto
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
         
         // Si necesitamos refrescar el estado, hacerlo con un pequeño delay para dar tiempo al backend
         // Future.delayed(const Duration(seconds: 2), () async {
@@ -1458,6 +1730,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onOtherLocationApartmentChanged: _onOtherLocationApartmentChanged,
                 completedLocationDetail: _completedLocationDetail,
                 locationHistory: _locationHistory,
+                // Nuevos parámetros para la funcionalidad mejorada
+                catalogLocations: _catalogLocations,
+                userDeclaredAddress: _userDeclaredAddress,
+                additionalLocations: _additionalLocations,
+                onAddAdditionalLocation: _onAddAdditionalLocation,
+                onRemoveAdditionalLocation: _onRemoveAdditionalLocation,
+                onUpdateAdditionalLocation: _onUpdateAdditionalLocation,
               ),
 
               // Aquí se podrían agregar más organismos como:

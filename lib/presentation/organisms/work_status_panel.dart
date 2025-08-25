@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../atoms/atoms.dart';
 import '../molecules/molecules.dart';
+import '../molecules/add_location_dialog.dart';
 import '../../core/constants/location_types.dart';
+import '../../data/models/work_location.dart';
+import '../../data/services/catalog_service.dart';
 
 /// **ORGANISMO: Panel de Estado de Trabajo**
 ///
@@ -86,6 +89,25 @@ class WorkStatusPanel extends StatelessWidget {
   // Historial de ubicaciones durante la jornada
   final List<Map<String, dynamic>>? locationHistory;
 
+  // Nuevas propiedades para la funcionalidad mejorada de ubicaciones
+  /// Ubicaciones del catálogo (oficinas, clientes, etc.)
+  final List<CatalogLocation>? catalogLocations;
+  
+  /// Dirección del domicilio declarado del usuario
+  final String? userDeclaredAddress;
+  
+  /// Lista de ubicaciones adicionales agregadas durante el día
+  final List<WorkLocation> additionalLocations;
+  
+  /// Función para agregar una nueva ubicación adicional
+  final Function(WorkLocation)? onAddAdditionalLocation;
+  
+  /// Función para remover una ubicación adicional
+  final Function(int)? onRemoveAdditionalLocation;
+  
+  /// Función para actualizar una ubicación adicional
+  final Function(int, WorkLocation)? onUpdateAdditionalLocation;
+
   const WorkStatusPanel({
     super.key,
     required this.isWorking,
@@ -113,6 +135,13 @@ class WorkStatusPanel extends StatelessWidget {
     this.onOtherLocationApartmentChanged,
     this.completedLocationDetail,
     this.locationHistory,
+    // Nuevas propiedades
+    this.catalogLocations,
+    this.userDeclaredAddress,
+    this.additionalLocations = const [],
+    this.onAddAdditionalLocation,
+    this.onRemoveAdditionalLocation,
+    this.onUpdateAdditionalLocation,
   });
 
   /// Formatea una duración como "HH:MM:SS"
@@ -130,36 +159,78 @@ class WorkStatusPanel extends StatelessWidget {
       return completedLocationDetail!;
     }
     
-    // Si no está completada, usar la lógica normal con la primera ubicación seleccionada
-    final primaryLocation = selectedLocations.isNotEmpty ? selectedLocations.first : 0;
-    if (primaryLocation == LocationTypes.REMOTE_ALTERNATIVE && (otherLocationDetail?.isNotEmpty ?? false)) {
-      String locationText = otherLocationDetail!;
-      
-      // Agregar piso si está disponible
-      if (otherLocationFloor?.isNotEmpty ?? false) {
-        locationText += ', Piso ${otherLocationFloor!}';
+    // Si no está completada, usar la ubicación principal seleccionada
+    if (selectedSingleLocation != null) {
+      if (selectedSingleLocation == LocationTypes.REMOTE_ALTERNATIVE && (otherLocationDetail?.isNotEmpty ?? false)) {
+        String locationText = otherLocationDetail!;
+        
+        // Agregar piso si está disponible
+        if (otherLocationFloor?.isNotEmpty ?? false) {
+          locationText += ', Piso ${otherLocationFloor!}';
+        }
+        
+        // Agregar departamento si está disponible
+        if (otherLocationApartment?.isNotEmpty ?? false) {
+          locationText += ', Dpto ${otherLocationApartment!}';
+        }
+        
+        return locationText;
       }
-      
-      // Agregar departamento si está disponible
-      if (otherLocationApartment?.isNotEmpty ?? false) {
-        locationText += ', Dpto ${otherLocationApartment!}';
-      }
-      
-      return locationText;
+      return _getLocationDisplayName(selectedSingleLocation!);
     }
-    return locations[primaryLocation] ?? '';
+    return '';
   }
 
-  /// Construye el selector de ubicación (único o múltiple)
-  Widget _buildLocationSelector(BuildContext context) {
-    // Crear opciones del dropdown
-    final dropdownOptions = <String, dynamic>{
-      // Ubicaciones individuales
-      for (var entry in locations.entries)
-        entry.value: entry.key,
-      // Opción para selección múltiple
-      'Varios/Múltiples': 'multiple',
-    };
+  /// Construye las opciones de ubicación basadas en catálogos y domicilio declarado
+  List<LocationOption> _buildLocationOptions() {
+    List<LocationOption> options = [];
+
+    // 1. Domicilio Declarado (siempre disponible)
+    options.add(LocationOption(
+      id: LocationTypes.REMOTE_DECLARED,
+      name: 'Domicilio Declarado',
+      description: userDeclaredAddress?.isNotEmpty == true 
+          ? userDeclaredAddress 
+          : 'Trabajar desde domicilio registrado',
+      source: LocationSource.declaredAddress,
+    ));
+
+    // 2. Domicilio Alternativo (siempre disponible)
+    options.add(LocationOption(
+      id: LocationTypes.REMOTE_ALTERNATIVE,
+      name: 'Domicilio Alternativo',
+      description: 'Trabajar desde una dirección alternativa',
+      source: LocationSource.alternativeAddress,
+    ));
+
+    // 3. Ubicaciones del catálogo (oficinas, clientes, etc.)
+    if (catalogLocations != null) {
+      for (final catalogLocation in catalogLocations!) {
+        if (catalogLocation.isActive) {
+          options.add(LocationOption(
+            id: catalogLocation.id,
+            name: catalogLocation.name,
+            description: catalogLocation.description ?? catalogLocation.address,
+            source: LocationSource.catalog,
+            address: catalogLocation.address,
+          ));
+        }
+      }
+    }
+
+    return options;
+  }
+
+  /// Construye el selector de ubicación renovado
+  Widget _buildNewLocationSelector(BuildContext context) {
+    final locationOptions = _buildLocationOptions();
+    
+    // Validar que el valor seleccionado esté disponible en las opciones
+    final availableIds = locationOptions.map((opt) => opt.id).toSet();
+    final validSelectedLocation = (selectedSingleLocation != null && 
+        availableIds.contains(selectedSingleLocation)) 
+        ? selectedSingleLocation 
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,36 +244,39 @@ class WorkStatusPanel extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           child: DropdownButtonHideUnderline(
-            child: DropdownButton<dynamic>(
+            child: DropdownButton<int>(
               isExpanded: true,
-              value: selectionMode == 'multiple' 
-                  ? 'multiple' 
-                  : selectedSingleLocation,
+              value: validSelectedLocation,
               hint: const Text('Selecciona ubicación'),
-              onChanged: isProcessing ? null : (dynamic value) {
-                if (value == 'multiple') {
-                  // Cambiar a modo múltiple
-                  onSelectionModeChanged('multiple');
-                } else if (value is int) {
-                  // Cambiar a modo único con ubicación específica
-                  onSelectionModeChanged('single');
+              onChanged: isProcessing ? null : (int? value) {
+                if (value != null) {
                   onSingleLocationChanged?.call(value);
                 }
               },
-              items: dropdownOptions.entries.map((entry) {
-                return DropdownMenuItem<dynamic>(
-                  value: entry.value,
-                  child: Row(
+              items: locationOptions.map((option) {
+                return DropdownMenuItem<int>(
+                  value: option.id,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        entry.value == 'multiple' 
-                            ? Icons.checklist
-                            : Icons.location_on,
-                        size: 16,
-                        color: const Color(0xFFE67D21),
+                      Text(
+                        option.displayName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(entry.key)),
+                      if (option.description != null && option.description!.isNotEmpty)
+                        Text(
+                          option.description!,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
                 );
@@ -211,135 +285,8 @@ class WorkStatusPanel extends StatelessWidget {
           ),
         ),
         
-        const SizedBox(height: 12),
-        
-        // Si está en modo múltiple, mostrar checkboxes
-        if (selectionMode == 'multiple') ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Selecciona una o más ubicaciones:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...locations.entries.map((entry) {
-                  final isSelected = selectedLocations.contains(entry.key);
-                  final currentTime = locationSchedule?[entry.key];
-                  
-                  return Column(
-                    children: [
-                      CheckboxListTile(
-                        title: Text(entry.value),
-                        value: isSelected,
-                        onChanged: isProcessing
-                            ? null
-                            : (bool? value) {
-                                if (value != null) {
-                                  List<int> newSelections = List.from(selectedLocations);
-                                  Map<int, TimeOfDay> newSchedule = Map.from(locationSchedule ?? {});
-                                  
-                                  if (value) {
-                                    if (!newSelections.contains(entry.key)) {
-                                      newSelections.add(entry.key);
-                                      // Agregar horario por defecto
-                                      newSchedule[entry.key] = const TimeOfDay(hour: 8, minute: 0);
-                                    }
-                                  } else {
-                                    newSelections.remove(entry.key);
-                                    newSchedule.remove(entry.key);
-                                  }
-                                  
-                                  // Asegurar que al menos una ubicación esté seleccionada
-                                  if (newSelections.isNotEmpty) {
-                                    onLocationChanged(newSelections);
-                                    onScheduleChanged?.call(newSchedule);
-                                  }
-                                }
-                              },
-                        activeColor: const Color(0xFFE67D21),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                      // Mostrar selector de horario si está seleccionada
-                      if (isSelected) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32, right: 16, bottom: 8),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Horario:',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: isProcessing ? null : () async {
-                                  final TimeOfDay? picked = await showTimePicker(
-                                    context: context,
-                                    initialTime: currentTime ?? const TimeOfDay(hour: 8, minute: 0),
-                                    builder: (context, child) {
-                                      return Theme(
-                                        data: Theme.of(context).copyWith(
-                                          colorScheme: Theme.of(context).colorScheme.copyWith(
-                                            primary: const Color(0xFFE67D21),
-                                          ),
-                                        ),
-                                        child: child!,
-                                      );
-                                    },
-                                  );
-                                  if (picked != null) {
-                                    Map<int, TimeOfDay> newSchedule = Map.from(locationSchedule ?? {});
-                                    newSchedule[entry.key] = picked;
-                                    onScheduleChanged?.call(newSchedule);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: const Color(0xFFE67D21)),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    currentTime?.format(context) ?? '8:00 AM',
-                                    style: const TextStyle(
-                                      color: Color(0xFFE67D21),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  );
-                }).toList(),
-              ],
-            ),
-          ),
-        ],
-        
         // Campo de dirección si se selecciona "Domicilio Alternativo"
-        if (_shouldShowAddressField()) ...[
+        if (validSelectedLocation == LocationTypes.REMOTE_ALTERNATIVE) ...[
           const SizedBox(height: 12),
           AddressSearchField(
             enabled: !isProcessing,
@@ -379,17 +326,250 @@ class WorkStatusPanel extends StatelessWidget {
           ),
         ],
         
+        // Sección de ubicaciones adicionales
+        if (additionalLocations.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _buildAdditionalLocationsSection(context),
+        ],
+        
+        // Botón/Link para agregar más ubicaciones
+        const SizedBox(height: 16),
+        _buildAddLocationButton(context),
+        
         const SizedBox(height: 20),
       ],
     );
   }
 
-  /// Determina si debe mostrar el campo de dirección
-  bool _shouldShowAddressField() {
-    if (selectionMode == 'multiple') {
-      return selectedLocations.contains(LocationTypes.REMOTE_ALTERNATIVE);
+  /// Construye la sección de ubicaciones adicionales
+  Widget _buildAdditionalLocationsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.add_location_alt, color: Colors.blue.shade600, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Ubicaciones adicionales para hoy:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.blue.shade700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...additionalLocations.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final WorkLocation location = entry.value;
+          final locationOptions = _buildLocationOptions();
+          final locationOption = locationOptions.firstWhere(
+            (opt) => opt.id == location.locationTypeId,
+            orElse: () => LocationOption(
+              id: location.locationTypeId,
+              name: 'Ubicación',
+              source: LocationSource.catalog,
+            ),
+          );
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        locationOption.displayName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${location.startTime.format(context)} - ${location.endTime?.format(context) ?? "Fin de jornada"}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade600),
+                  onPressed: isProcessing ? null : () {
+                    onRemoveAdditionalLocation?.call(index);
+                  },
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  /// Construye el botón para agregar más ubicaciones
+  Widget _buildAddLocationButton(BuildContext context) {
+    return InkWell(
+      onTap: isProcessing ? null : () {
+        _showAddLocationDialog(context);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFE67D21)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.add_location_alt_outlined,
+              color: const Color(0xFFE67D21),
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Agregar más ubicaciones',
+              style: TextStyle(
+                color: const Color(0xFFE67D21),
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Muestra el diálogo para agregar una nueva ubicación
+  void _showAddLocationDialog(BuildContext context) async {
+    if (onAddAdditionalLocation == null) return;
+    
+    // Obtener IDs de ubicaciones ya seleccionadas (incluyendo la principal y adicionales)
+    final List<int> excludedIds = [
+      if (selectedSingleLocation != null) selectedSingleLocation!,
+      ...additionalLocations.map((loc) => loc.locationTypeId),
+    ];
+
+    final WorkLocation? newLocation = await AddLocationDialog.show(
+      context: context,
+      catalogLocations: catalogLocations,
+      userDeclaredAddress: userDeclaredAddress,
+      excludedLocationIds: excludedIds,
+    );
+
+    if (newLocation != null) {
+      onAddAdditionalLocation!(newLocation);
+    }
+  }
+
+  /// Construye el mensaje que muestra las ubicaciones donde se está trabajando
+  String _buildWorkingLocationMessage(BuildContext context) {
+    List<String> locationParts = [];
+
+    // Agregar la ubicación principal
+    if (selectedSingleLocation != null) {
+      String primaryLocationName = _getLocationDisplayName(selectedSingleLocation!);
+      locationParts.add(primaryLocationName);
+    }
+
+    // Agregar ubicaciones adicionales con horarios
+    for (final additionalLocation in additionalLocations) {
+      String additionalLocationName = _getLocationDisplayName(additionalLocation.locationTypeId);
+      String timeRange = additionalLocation.startTime.format(context);
+      if (additionalLocation.endTime != null) {
+        timeRange += ' - ${additionalLocation.endTime!.format(context)}';
+      }
+      locationParts.add('$additionalLocationName ($timeRange)');
+    }
+
+    if (locationParts.length == 1) {
+      return 'Trabajando desde: ${locationParts.first}';
     } else {
-      return selectedSingleLocation == LocationTypes.REMOTE_ALTERNATIVE;
+      return 'Hoy trabajarás desde:\n${locationParts.map((part) => '• $part').join('\n')}';
+    }
+  }
+
+  /// Obtiene el nombre a mostrar de una ubicación por su ID
+  String _getLocationDisplayName(int locationId) {
+    if (locationId == LocationTypes.REMOTE_DECLARED) {
+      return 'Domicilio Declarado';
+    } else if (locationId == LocationTypes.REMOTE_ALTERNATIVE) {
+      return 'Domicilio Alternativo';
+    } else {
+      // Buscar en el catálogo
+      if (catalogLocations != null) {
+        try {
+          final catalogLocation = catalogLocations!.firstWhere(
+            (cat) => cat.id == locationId,
+          );
+          return catalogLocation.name;
+        } catch (e) {
+          // Si no se encuentra en el catálogo
+        }
+      }
+      return 'Ubicación $locationId';
+    }
+  }
+
+  /// Formatea el tiempo de una entrada del historial de ubicaciones
+  String _formatLocationTime(Map<String, dynamic> location) {
+    try {
+      // Priorizar el start_time (horario elegido por usuario) sobre timestamp del servidor
+      final timeValue = location['start_time'] ?? location['timestamp'] ?? location['time'] ?? location['created_at'];
+      
+      if (timeValue == null) return 'Hora no disponible';
+      
+      DateTime dateTime;
+      
+      // Parsing del timestamp
+      if (timeValue is String) {
+        // Si contiene 'T', es formato ISO
+        if (timeValue.contains('T')) {
+          dateTime = DateTime.parse(timeValue);
+        } else {
+          // Asumir que es solo hora en formato HH:mm:ss
+          final today = DateTime.now();
+          final timeParts = timeValue.split(':');
+          if (timeParts.length >= 2) {
+            final hour = int.parse(timeParts[0]);
+            final minute = int.parse(timeParts[1]);
+            dateTime = DateTime(today.year, today.month, today.day, hour, minute);
+          } else {
+            return 'Formato de hora inválido';
+          }
+        }
+      } else {
+        return 'Tipo de hora inválido';
+      }
+      
+      // Formatear a hora local (mostrar el horario que eligió el usuario)
+      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      
+    } catch (e) {
+      print('Error formateando tiempo de ubicación: $e');
+      return 'Error en horario';
     }
   }
 
@@ -630,8 +810,8 @@ class WorkStatusPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              // Dropdown para selección única o múltiple
-              _buildLocationSelector(context),
+              // Selector de ubicación renovado con catálogos
+              _buildNewLocationSelector(context),
             ],
 
             // Mostrar ubicación final cuando la jornada está completada
@@ -786,6 +966,19 @@ class WorkStatusPanel extends StatelessWidget {
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
+                                        // Agregar información de horario
+                                        if (location['timestamp'] != null || location['time'] != null)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              _formatLocationTime(location),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey.shade600,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ),
                                         
                                       ],
                                     ),
@@ -815,9 +1008,7 @@ class WorkStatusPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      selectedLocations.length == 1 
-                        ? 'Trabajando desde: ${_buildLocationText()}'
-                        : 'Hoy trabajarás desde: ${selectedLocations.map((id) => locations[id]).join(', ')}',
+                      _buildWorkingLocationMessage(context),
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Colors.grey,
