@@ -10,18 +10,36 @@ import 'presentation/routes/protected_route.dart';
 import 'core/themes/app_theme.dart';
 
 void main() async {
-  // Asegurar que Flutter esté inicializado
-  WidgetsFlutterBinding.ensureInitialized();
+  print('🚀 main(): Iniciando aplicación ABSTI...');
   
-  // Inicializar servicio de notificaciones
-  await NotificationService().initialize();
-  
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
-      child: const MyApp(),
-    ),
-  );
+  try {
+    // Asegurar que Flutter esté inicializado
+    print('🚀 main(): Asegurando inicialización de Flutter...');
+    WidgetsFlutterBinding.ensureInitialized();
+    print('🚀 main(): Flutter inicializado correctamente');
+    
+    // Inicializar servicio de notificaciones
+    print('🚀 main(): Inicializando servicio de notificaciones...');
+    await NotificationService().initialize();
+    print('🚀 main(): Servicio de notificaciones inicializado');
+    
+    print('🚀 main(): Creando AuthProvider...');
+    final authProvider = AuthProvider();
+    print('🚀 main(): AuthProvider creado exitosamente');
+    
+    print('🚀 main(): Ejecutando runApp...');
+    runApp(
+      ChangeNotifierProvider(
+        create: (context) => authProvider,
+        child: const MyApp(),
+      ),
+    );
+    print('🚀 main(): runApp ejecutado exitosamente');
+  } catch (e, stackTrace) {
+    print('💥 main(): Error durante la inicialización: $e');
+    print('💥 main(): Stack trace: $stackTrace');
+    rethrow;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -30,11 +48,16 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    print('🏗️ MyApp.build(): Construyendo aplicación...');
+    
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        print(
-          'Main.dart Consumer: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}',
-        );
+        print('🏗️ MyApp Consumer: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}');
+        print('🏗️ MyApp Consumer: token presente: ${authProvider.token != null ? "SÍ" : "NO"}');
+        if (authProvider.token != null) {
+          print('🏗️ MyApp Consumer: token longitud: ${authProvider.token!.length}');
+        }
+        
         return MaterialApp(
           title: 'ABSistencia',
           debugShowCheckedModeBanner: false,
@@ -42,11 +65,9 @@ class MyApp extends StatelessWidget {
           // Ruta inicial basada en el estado de autenticación
           home: authProvider.isInitialized
               ? (authProvider.isAuthenticated
-                    ? ProtectedRoute(
-                        child: HomePage(token: authProvider.token ?? ''),
-                      )
-                    : GuestRoute(child: LoginPage()))
-              : Scaffold(body: Center(child: CircularProgressIndicator())),
+                    ? _buildProtectedRoute(context, authProvider)
+                    : _buildGuestRoute(context))
+              : _buildLoadingScreen(),
           routes: {
             '/login': (context) => GuestRoute(child: LoginPage()),
             '/register': (context) => GuestRoute(child: RegisterPage()),
@@ -56,6 +77,40 @@ class MyApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _buildProtectedRoute(BuildContext context, AuthProvider authProvider) {
+    print('🏗️ MyApp: Construyendo ruta protegida para usuario autenticado');
+    return ProtectedRoute(
+      child: HomePage(token: authProvider.token ?? ''),
+    );
+  }
+
+  Widget _buildGuestRoute(BuildContext context) {
+    print('🏗️ MyApp: Construyendo ruta de invitado (LoginPage)');
+    return GuestRoute(child: LoginPage());
+  }
+
+  Widget _buildLoadingScreen() {
+    print('🏗️ MyApp: Mostrando pantalla de carga durante inicialización');
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Inicializando ABSTI...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
