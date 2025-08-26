@@ -5,6 +5,53 @@ import '../../core/constants/location_types.dart';
 import '../atoms/atoms.dart';
 import 'address_search_field.dart';
 
+/// Tipos de sugerencias para resolver conflictos de horarios
+enum SuggestionType {
+  modifyExisting,    // Modificar ubicación existente
+  rescheduleNew,     // Reprogramar nueva ubicación
+  splitExisting,     // Dividir ubicación existente
+}
+
+/// Análisis de conflictos de horarios
+class ScheduleConflictAnalysis {
+  final bool hasConflict;
+  final WorkLocation? conflictingLocation;
+  final TimeOfDay? newLocationStart;
+  final TimeOfDay? newLocationEnd;
+  final List<ScheduleSuggestion> suggestions;
+
+  ScheduleConflictAnalysis({
+    required this.hasConflict,
+    this.conflictingLocation,
+    this.newLocationStart,
+    this.newLocationEnd,
+    this.suggestions = const [],
+  });
+}
+
+/// Sugerencia para resolver conflicto de horarios
+class ScheduleSuggestion {
+  final SuggestionType type;
+  final String description;
+  final WorkLocation? modifiedLocation;
+  final TimeOfDay? newStartTime;
+  final TimeOfDay? newEndTime;
+  final bool needsAdditionalLocation;
+  final TimeOfDay? additionalLocationStart;
+  final TimeOfDay? additionalLocationEnd;
+
+  ScheduleSuggestion({
+    required this.type,
+    required this.description,
+    this.modifiedLocation,
+    this.newStartTime,
+    this.newEndTime,
+    this.needsAdditionalLocation = false,
+    this.additionalLocationStart,
+    this.additionalLocationEnd,
+  });
+}
+
 /// **MOLÉCULA: Diálogo para agregar ubicación adicional**
 ///
 /// Diálogo que permite al usuario agregar una nueva ubicación
@@ -22,14 +69,14 @@ class AddLocationDialog extends StatefulWidget {
   /// Dirección del domicilio declarado del usuario
   final String? userDeclaredAddress;
   
-  /// Ubicaciones ya seleccionadas (para evitar duplicados)
-  final List<int> excludedLocationIds;
+  /// Ubicaciones adicionales existentes (para validar solapamientos de horarios)
+  final List<WorkLocation> existingLocations;
 
   const AddLocationDialog({
     super.key,
     this.catalogLocations,
     this.userDeclaredAddress,
-    this.excludedLocationIds = const [],
+    this.existingLocations = const [],
   });
 
   /// Muestra el diálogo y retorna la ubicación adicional creada
@@ -37,7 +84,7 @@ class AddLocationDialog extends StatefulWidget {
     required BuildContext context,
     List<CatalogLocation>? catalogLocations,
     String? userDeclaredAddress,
-    List<int> excludedLocationIds = const [],
+    List<WorkLocation> existingLocations = const [],
   }) {
     return showDialog<WorkLocation>(
       context: context,
@@ -45,7 +92,7 @@ class AddLocationDialog extends StatefulWidget {
       builder: (context) => AddLocationDialog(
         catalogLocations: catalogLocations,
         userDeclaredAddress: userDeclaredAddress,
-        excludedLocationIds: excludedLocationIds,
+        existingLocations: existingLocations,
       ),
     );
   }
@@ -68,33 +115,28 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
   List<LocationOption> _buildAvailableOptions() {
     List<LocationOption> options = [];
 
-    // Domicilio Declarado (siempre disponible si no está excluido)
-    if (!widget.excludedLocationIds.contains(LocationTypes.REMOTE_DECLARED)) {
-      options.add(LocationOption(
-        id: LocationTypes.REMOTE_DECLARED,
-        name: 'Domicilio Declarado',
-        description: widget.userDeclaredAddress?.isNotEmpty == true 
-            ? widget.userDeclaredAddress!
-            : 'Trabajar desde domicilio registrado',
-        source: LocationSource.declaredAddress,
-      ));
-    }
+    // Domicilio Declarado (siempre disponible - CAMBIO: ya no verificar excludedLocationIds)
+    options.add(LocationOption(
+      id: LocationTypes.REMOTE_DECLARED,
+      name: 'Domicilio Declarado',
+      description: widget.userDeclaredAddress?.isNotEmpty == true 
+          ? widget.userDeclaredAddress!
+          : 'Trabajar desde domicilio registrado',
+      source: LocationSource.declaredAddress,
+    ));
 
-    // Domicilio Alternativo (solo si no está excluido)
-    if (!widget.excludedLocationIds.contains(LocationTypes.REMOTE_ALTERNATIVE)) {
-      options.add(LocationOption(
-        id: LocationTypes.REMOTE_ALTERNATIVE,
-        name: 'Domicilio Alternativo',
-        description: 'Trabajar desde una dirección alternativa',
-        source: LocationSource.alternativeAddress,
-      ));
-    }
+    // Domicilio Alternativo (siempre disponible - CAMBIO: ya no verificar excludedLocationIds)
+    options.add(LocationOption(
+      id: LocationTypes.REMOTE_ALTERNATIVE,
+      name: 'Domicilio Alternativo',
+      description: 'Trabajar desde una dirección alternativa',
+      source: LocationSource.alternativeAddress,
+    ));
 
-    // Ubicaciones del catálogo (excluyendo las ya seleccionadas)
+    // Ubicaciones del catálogo (CAMBIO: mostrar todas las activas, sin excluir)
     if (widget.catalogLocations != null) {
       for (final catalogLocation in widget.catalogLocations!) {
-        if (catalogLocation.isActive && 
-            !widget.excludedLocationIds.contains(catalogLocation.id)) {
+        if (catalogLocation.isActive) {
           options.add(LocationOption(
             id: catalogLocation.id,
             name: catalogLocation.name,
@@ -159,7 +201,349 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       return false;
     }
 
+    // Validar que los horarios no estén en el pasado
+    if (!_validateTimeNotInPast()) {
+      return false;
+    }
+
+    // Validar que no haya solapamiento con ubicaciones existentes
+    if (!_validateNoTimeOverlap()) {
+      return false;
+    }
+
     return true;
+  }
+
+  /// Valida que los horarios no estén en el pasado
+  bool _validateTimeNotInPast() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    final startDateTime = DateTime(
+      today.year,
+      today.month, 
+      today.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+    
+    if (startDateTime.isBefore(now)) {
+      _showError('La hora de inicio no puede ser en el pasado');
+      return false;
+    }
+    
+    return true;
+  }
+
+  /// Valida que no haya solapamiento de horarios con ubicaciones existentes
+  bool _validateNoTimeOverlap() {
+    final result = _analyzeTimeConflicts();
+    
+    if (result.hasConflict) {
+      _showScheduleSuggestion(result);
+      return false;
+    }
+    
+    return true;
+  }
+
+  /// Analiza conflictos de horarios y genera sugerencias
+  ScheduleConflictAnalysis _analyzeTimeConflicts() {
+    final startMinutes = _startTime.hour * 60 + _startTime.minute;
+    final endMinutes = _endTime.hour * 60 + _endTime.minute;
+
+    print('DEBUG AddLocationDialog: Analizando conflictos...');
+    print('  - Nueva ubicación: ${_startTime.format(context)} - ${_endTime.format(context)} ($startMinutes - $endMinutes minutos)');
+    print('  - Ubicaciones existentes para validar: ${widget.existingLocations.length}');
+
+    for (int i = 0; i < widget.existingLocations.length; i++) {
+      final existingLocation = widget.existingLocations[i];
+      print('  - Existente $i: ID ${existingLocation.locationTypeId}, ${existingLocation.startTime.format(context)} - ${existingLocation.endTime?.format(context) ?? "Sin fin"}');
+      
+      final existingStartMinutes = existingLocation.startTime.hour * 60 + existingLocation.startTime.minute;
+      final existingEndMinutes = existingLocation.endTime != null 
+          ? (existingLocation.endTime!.hour * 60 + existingLocation.endTime!.minute)
+          : null;
+      
+      // Si la ubicación existente no tiene hora de fin, consideramos que va hasta el final del día
+      final effectiveEndMinutes = existingEndMinutes ?? (23 * 60 + 59);
+      
+      print('    Minutos existentes: $existingStartMinutes - $effectiveEndMinutes');
+      
+      // Verificar solapamiento
+      bool hasOverlap = (startMinutes < effectiveEndMinutes) && (endMinutes > existingStartMinutes);
+      
+      print('    ¿Hay solapamiento? $hasOverlap');
+      print('    Lógica: ($startMinutes < $effectiveEndMinutes) && ($endMinutes > $existingStartMinutes)');
+      print('           ${startMinutes < effectiveEndMinutes} && ${endMinutes > existingStartMinutes}');
+      
+      if (hasOverlap) {
+        print('  *** CONFLICTO DETECTADO ***');
+        return ScheduleConflictAnalysis(
+          hasConflict: true,
+          conflictingLocation: existingLocation,
+          newLocationStart: _startTime,
+          newLocationEnd: _endTime,
+          suggestions: _generateScheduleSuggestions(existingLocation),
+        );
+      }
+    }
+    
+    print('  - No se detectaron conflictos');
+    return ScheduleConflictAnalysis(hasConflict: false);
+  }
+
+  /// Genera sugerencias para resolver conflictos de horarios
+  List<ScheduleSuggestion> _generateScheduleSuggestions(WorkLocation conflictingLocation) {
+    print('DEBUG: Generando sugerencias para resolver conflicto...');
+    
+    final suggestions = <ScheduleSuggestion>[];
+    final newStart = _startTime.hour * 60 + _startTime.minute;
+    final newEnd = _endTime.hour * 60 + _endTime.minute;
+    final existingStart = conflictingLocation.startTime.hour * 60 + conflictingLocation.startTime.minute;
+    final existingEnd = conflictingLocation.endTime != null
+        ? (conflictingLocation.endTime!.hour * 60 + conflictingLocation.endTime!.minute)
+        : (17 * 60); // Default 5 PM si no hay hora de fin
+
+    final conflictingLocationName = _getLocationNameById(conflictingLocation.locationTypeId);
+
+    print('  - Nueva ubicación: $newStart - $newEnd minutos');
+    print('  - Ubicación existente ($conflictingLocationName): $existingStart - $existingEnd minutos');
+
+    // Sugerencia 1: Ajustar ubicación existente para que termine antes
+    if (newStart < existingEnd && newStart > existingStart) {
+      final suggestedEndTime = TimeOfDay(
+        hour: (newStart - 1) ~/ 60,
+        minute: (newStart - 1) % 60,
+      );
+      
+      final suggestion = ScheduleSuggestion(
+        type: SuggestionType.modifyExisting,
+        description: 'Modificar $conflictingLocationName para que termine a las ${suggestedEndTime.format(context)}',
+        modifiedLocation: conflictingLocation,
+        newStartTime: conflictingLocation.startTime,
+        newEndTime: suggestedEndTime,
+        needsAdditionalLocation: newEnd > existingEnd,
+        additionalLocationStart: newEnd > existingEnd ? _timeFromMinutes(existingEnd) : null,
+      );
+      
+      suggestions.add(suggestion);
+      print('  + Sugerencia 1: ${suggestion.description}');
+    }
+
+    // Sugerencia 2: Dividir la ubicación existente
+    if (newStart > existingStart && newEnd < existingEnd) {
+      final suggestion = ScheduleSuggestion(
+        type: SuggestionType.splitExisting,
+        description: 'Dividir $conflictingLocationName en dos períodos: antes y después de la nueva ubicación',
+        modifiedLocation: conflictingLocation,
+        newStartTime: conflictingLocation.startTime,
+        newEndTime: TimeOfDay(hour: (newStart - 1) ~/ 60, minute: (newStart - 1) % 60),
+        needsAdditionalLocation: true,
+        additionalLocationStart: TimeOfDay(hour: (newEnd + 1) ~/ 60, minute: (newEnd + 1) % 60),
+        additionalLocationEnd: conflictingLocation.endTime,
+      );
+      
+      suggestions.add(suggestion);
+      print('  + Sugerencia 2: ${suggestion.description}');
+    }
+
+    // Sugerencia 3: Programar nueva ubicación después
+    final nextAvailableSlot = existingEnd + 1;
+    if (nextAvailableSlot < 18 * 60) { // Antes de las 6 PM
+      final suggestedStartTime = _timeFromMinutes(nextAvailableSlot);
+      final duration = newEnd - newStart;
+      final suggestedEndTime = _timeFromMinutes(nextAvailableSlot + duration);
+      
+      final suggestion = ScheduleSuggestion(
+        type: SuggestionType.rescheduleNew,
+        description: 'Programar nueva ubicación después de $conflictingLocationName (${suggestedStartTime.format(context)} - ${suggestedEndTime.format(context)})',
+        newStartTime: suggestedStartTime,
+        newEndTime: suggestedEndTime,
+      );
+      
+      suggestions.add(suggestion);
+      print('  + Sugerencia 3: ${suggestion.description}');
+    }
+
+    print('  - Total sugerencias generadas: ${suggestions.length}');
+    return suggestions;
+  }
+
+  TimeOfDay _timeFromMinutes(int totalMinutes) {
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    return TimeOfDay(hour: hours.clamp(0, 23), minute: minutes.clamp(0, 59));
+  }
+
+  /// Muestra diálogo con sugerencias para resolver conflictos
+  void _showScheduleSuggestion(ScheduleConflictAnalysis analysis) {
+    final conflictingLocationName = _getLocationNameById(analysis.conflictingLocation!.locationTypeId);
+    final conflictingTimeRange = analysis.conflictingLocation!.endTime != null
+        ? '${analysis.conflictingLocation!.startTime.format(context)} - ${analysis.conflictingLocation!.endTime!.format(context)}'
+        : 'desde ${analysis.conflictingLocation!.startTime.format(context)}';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange.shade600),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Conflicto de Horarios')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'El horario seleccionado (${_startTime.format(context)} - ${_endTime.format(context)}) se solapa con:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Text(
+                '$conflictingLocationName\n$conflictingTimeRange',
+                style: TextStyle(color: Colors.red.shade700),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Sugerencias para resolver el conflicto:',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            ...analysis.suggestions.map((suggestion) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap: () => _applySuggestion(suggestion),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, 
+                        color: Colors.blue.shade600, 
+                        size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          suggestion.description,
+                          style: TextStyle(color: Colors.blue.shade700),
+                        ),
+                      ),
+                      Icon(Icons.arrow_forward_ios, 
+                        color: Colors.blue.shade400, 
+                        size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            )).toList(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Modificar Manualmente'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _applySuggestion(ScheduleSuggestion suggestion) {
+    Navigator.of(context).pop(); // Cerrar el diálogo de sugerencias
+    
+    // Mostrar diálogo de confirmación con los cambios propuestos
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Aplicar Sugerencia'),
+        content: Text('¿Deseas aplicar esta sugerencia?\n\n${suggestion.description}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Cerrar confirmación
+              _implementSuggestion(suggestion);
+            },
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _implementSuggestion(ScheduleSuggestion suggestion) {
+    switch (suggestion.type) {
+      case SuggestionType.modifyExisting:
+        // Aquí se implementaría la lógica para modificar la ubicación existente
+        // Por ahora, simplemente cerraremos el diálogo y mostraremos un mensaje
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sugerencia aplicada: ${suggestion.description}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        break;
+      case SuggestionType.rescheduleNew:
+        setState(() {
+          _startTime = suggestion.newStartTime!;
+          _endTime = suggestion.newEndTime!;
+        });
+        break;
+      case SuggestionType.splitExisting:
+        // Implementar lógica para dividir ubicación
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Función en desarrollo: ${suggestion.description}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        break;
+    }
+  }
+
+  /// Obtiene el nombre de una ubicación por su ID
+  String _getLocationNameById(int locationId) {
+    // Buscar en ubicaciones del catálogo
+    if (widget.catalogLocations != null) {
+      final catalogLocation = widget.catalogLocations!.firstWhere(
+        (loc) => loc.id == locationId,
+        orElse: () => CatalogLocation(id: -1, name: '', description: '', isActive: false),
+      );
+      if (catalogLocation.id != -1) {
+        return catalogLocation.name;
+      }
+    }
+    
+    // Ubicaciones especiales
+    switch (locationId) {
+      case LocationTypes.REMOTE_DECLARED:
+        return 'Domicilio Declarado';
+      case LocationTypes.REMOTE_ALTERNATIVE:
+        return 'Domicilio Alternativo';
+      default:
+        return 'Ubicación #$locationId';
+    }
   }
 
   /// Muestra un error al usuario

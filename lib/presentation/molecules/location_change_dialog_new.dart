@@ -32,7 +32,7 @@ class LocationChangeDialog extends StatefulWidget {
 
 class _LocationChangeDialogState extends State<LocationChangeDialog> {
   int? _selectedLocationId;
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _startTime = TimeOfDay.now(); // Inicializar con la hora actual
   TimeOfDay? _endTime;
   String _alternativeAddress = '';
   String _alternativeFloor = '';

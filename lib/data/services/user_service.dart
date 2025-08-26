@@ -28,6 +28,29 @@ class UserService {
   /// Retorna:
   /// - [Map<String, dynamic>]: Datos del usuario normalizados
   static Map<String, dynamic> _parseUserData(Map<String, dynamic> data) {
+    // Debug: mostrar estructura completa del usuario
+    print('UserService: === DATOS COMPLETOS DEL USUARIO ===');
+    print('UserService: ID: ${data['id']}');
+    print('UserService: Nombre: ${data['name']} ${data['surname']}');
+    print('UserService: Email: ${data['email']}');
+    
+    // Debug específico para el campo location
+    if (data['location'] != null) {
+      print('UserService: 🏠 LOCATION encontrado:');
+      final location = data['location'] as Map<String, dynamic>;
+      print('UserService: 🏠   calle: "${location['calle'] ?? ''}"');
+      print('UserService: 🏠   numero: "${location['numero'] ?? ''}"');
+      print('UserService: 🏠   piso: "${location['piso'] ?? ''}"');
+      print('UserService: 🏠   ciudad: "${location['ciudad'] ?? ''}"');
+      print('UserService: 🏠   provincia: "${location['provincia'] ?? ''}"');
+      print('UserService: 🏠   codigo_postal: "${location['codigo_postal'] ?? ''}"');
+      print('UserService: 🏠   pais: "${location['pais'] ?? ''}"');
+      print('UserService: 🏠   tipo: ${location['tipo'] ?? ''}');
+    } else {
+      print('UserService: ❌ NO se encontró campo location en la respuesta');
+    }
+    print('UserService: === FIN DATOS USUARIO ===');
+
     return {
       'id': data['id'] ?? 0,
       'name': data['name'] ?? '',
@@ -39,10 +62,23 @@ class UserService {
       'timezone': data['timezone'] ?? '',
       'notification_offset_min': data['notification_offset_min'] ?? 0,
       'checkin_start_time': data['checkin_start_time'] ?? '',
+      'checkout_end_time': data['checkout_end_time'] ?? '',
       'email_confirmed': data['email_confirmed'] ?? false,
       'deactivated': data['deactivated'] ?? false,
       'pending_approval': data['pending_approval'] ?? false,
-      // Campos de domicilio declarado
+      'active': data['active'] ?? true,
+      'dni': data['dni'] ?? '',
+      'cuil': data['cuil'] ?? '',
+      'birth_date': data['birth_date'] ?? '',
+      'hire_date': data['hire_date'] ?? '',
+      'weekly_hours': data['weekly_hours'] ?? 0,
+      'team': data['team'] ?? '',
+      'weekly_objective_days': data['weekly_objective_days'] ?? 0,
+      'monthly_objective_days': data['monthly_objective_days'] ?? 0,
+      'office_days': data['office_days'] ?? '',
+      // Incluir el objeto location completo
+      'location': data['location'],
+      // Campos de domicilio declarado (deprecated - mantener por compatibilidad)
       'declared_address': data['declared_address'] ?? '',
       'declared_city': data['declared_city'] ?? '',
       'declared_state': data['declared_state'] ?? '',
@@ -162,43 +198,63 @@ class UserService {
   /// Retorna:
   /// - [String]: Dirección formateada como string
   static String formatDeclaredAddress(Map<String, dynamic> addressData) {
+    print('UserService: === FORMATEANDO DIRECCIÓN ===');
+    print('UserService: Datos recibidos: $addressData');
+    
     final parts = <String>[];
     
-    // Calle y número
+    // Calle y número (parte principal)
     if (addressData['calle']?.isNotEmpty ?? false) {
-      String calleNumero = addressData['calle'];
+      String calleNumero = addressData['calle'].toString().trim();
       if (addressData['numero']?.isNotEmpty ?? false) {
-        calleNumero += ' ${addressData['numero']}';
+        calleNumero += ' ${addressData['numero'].toString().trim()}';
       }
       parts.add(calleNumero);
+      print('UserService: ✅ Agregado calle y número: "$calleNumero"');
     }
     
-    // Piso
+    // Piso (si existe)
     if (addressData['piso']?.isNotEmpty ?? false) {
-      parts.add(addressData['piso']);
+      final piso = addressData['piso'].toString().trim();
+      parts.add('Piso $piso');
+      print('UserService: ✅ Agregado piso: "Piso $piso"');
     }
     
-    // Ciudad
+    // Ciudad y provincia juntas
+    final locationParts = <String>[];
     if (addressData['ciudad']?.isNotEmpty ?? false) {
-      parts.add(addressData['ciudad']);
+      locationParts.add(addressData['ciudad'].toString().trim());
     }
-    
-    // Provincia
     if (addressData['provincia']?.isNotEmpty ?? false) {
-      parts.add(addressData['provincia']);
+      locationParts.add(addressData['provincia'].toString().trim());
+    }
+    if (locationParts.isNotEmpty) {
+      final cityProvince = locationParts.join(', ');
+      parts.add(cityProvince);
+      print('UserService: ✅ Agregado ciudad/provincia: "$cityProvince"');
     }
     
     // Código postal
     if (addressData['codigo_postal']?.isNotEmpty ?? false) {
-      parts.add('CP ${addressData['codigo_postal']}');
+      final cp = 'CP ${addressData['codigo_postal'].toString().trim()}';
+      parts.add(cp);
+      print('UserService: ✅ Agregado código postal: "$cp"');
     }
     
-    // País
+    // País (solo si es diferente de Argentina o si no hay otros datos)
     if (addressData['pais']?.isNotEmpty ?? false) {
-      parts.add(addressData['pais']);
+      final pais = addressData['pais'].toString().trim();
+      if (pais.toLowerCase() != 'argentina' || parts.isEmpty) {
+        parts.add(pais);
+        print('UserService: ✅ Agregado país: "$pais"');
+      }
     }
     
-    return parts.join(', ');
+    final formatted = parts.join(', ');
+    print('UserService: 📍 DIRECCIÓN FINAL: "$formatted"');
+    print('UserService: === FIN FORMATEO ===');
+    
+    return formatted;
   }
 
   /// Actualizar perfil del usuario actual usando PATCH /me

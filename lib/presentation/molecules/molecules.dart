@@ -18,6 +18,7 @@ export 'work_confirmation_dialogs.dart';
 export 'new_absence_dialog.dart';
 export 'add_location_dialog.dart';
 export 'location_change_dialog.dart';
+export 'schedule_selection_dialog.dart';
 
 // Campos de búsqueda especializados
 export 'address_search_field.dart';

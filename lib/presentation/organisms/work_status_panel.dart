@@ -6,6 +6,16 @@ import '../../core/constants/location_types.dart';
 import '../../data/models/work_location.dart';
 import '../../data/services/catalog_service.dart';
 
+/// Resultado de validación de jornada laboral
+class WorkdayValidation {
+  bool isValid = false;
+  double totalHours = 0.0;
+  double requiredHours = 9.0;
+  double missingHours = 0.0;
+  String message = '';
+  List<String> suggestions = [];
+}
+
 /// **ORGANISMO: Panel de Estado de Trabajo**
 ///
 /// Componente que muestra el estado actual del trabajo del usuario,
@@ -108,6 +118,14 @@ class WorkStatusPanel extends StatelessWidget {
   /// Función para actualizar una ubicación adicional
   final Function(int, WorkLocation)? onUpdateAdditionalLocation;
 
+  /// Horarios habituales del usuario
+  final TimeOfDay? userStartTime;
+  final TimeOfDay? userEndTime;
+  
+  /// Funciones para modificar horarios
+  final Function(TimeOfDay)? onStartTimeChanged;
+  final Function(TimeOfDay)? onEndTimeChanged;
+
   const WorkStatusPanel({
     super.key,
     required this.isWorking,
@@ -142,6 +160,11 @@ class WorkStatusPanel extends StatelessWidget {
     this.onAddAdditionalLocation,
     this.onRemoveAdditionalLocation,
     this.onUpdateAdditionalLocation,
+    // Horarios habituales
+    this.userStartTime,
+    this.userEndTime,
+    this.onStartTimeChanged,
+    this.onEndTimeChanged,
   });
 
   /// Formatea una duración como "HH:MM:SS"
@@ -221,6 +244,840 @@ class WorkStatusPanel extends StatelessWidget {
     return options;
   }
 
+  /// Valida la coherencia de los horarios cuando se hacen cambios
+  void _validateScheduleCoherence(BuildContext context, TimeOfDay newTime, bool isStartTime) {
+    if (additionalLocations.isNotEmpty) {
+      final conflicts = _findScheduleConflicts(context, newTime, isStartTime);
+      if (conflicts.isNotEmpty) {
+        _showScheduleWarning(context, conflicts, newTime, isStartTime);
+      }
+    }
+  }
+
+  /// Encuentra conflictos potenciales con ubicaciones adicionales
+  List<String> _findScheduleConflicts(BuildContext context, TimeOfDay newTime, bool isStartTime) {
+    final conflicts = <String>[];
+    final newTimeMinutes = newTime.hour * 60 + newTime.minute;
+    
+    final currentStartMinutes = userStartTime != null 
+        ? (userStartTime!.hour * 60 + userStartTime!.minute)
+        : (9 * 60); // Default 9 AM
+    final currentEndMinutes = userEndTime != null 
+        ? (userEndTime!.hour * 60 + userEndTime!.minute)
+        : (17 * 60); // Default 5 PM
+
+    // Determinar el nuevo rango completo
+    final effectiveStartMinutes = isStartTime ? newTimeMinutes : currentStartMinutes;
+    final effectiveEndMinutes = isStartTime ? currentEndMinutes : newTimeMinutes;
+
+    // Verificar conflictos con ubicaciones adicionales
+    for (final location in additionalLocations) {
+      final locationStart = location.startTime.hour * 60 + location.startTime.minute;
+      final locationEnd = location.endTime != null
+          ? (location.endTime!.hour * 60 + location.endTime!.minute)
+          : effectiveEndMinutes; // Si no tiene fin, usar el fin de jornada
+
+      // Verificar si la ubicación adicional queda fuera del nuevo horario habitual
+      if (locationStart < effectiveStartMinutes || locationEnd > effectiveEndMinutes) {
+        final locationName = _getLocationDisplayNameForValidation(location.locationTypeId);
+        final timeRange = location.endTime != null
+            ? '${location.startTime.format(context)} - ${location.endTime!.format(context)}'
+            : 'desde ${location.startTime.format(context)}';
+        conflicts.add('$locationName ($timeRange)');
+      }
+    }
+
+    return conflicts;
+  }
+
+  /// Obtiene el nombre para mostrar de una ubicación (para validaciones)
+  String _getLocationDisplayNameForValidation(int locationId) {
+    // Buscar en ubicaciones del catálogo
+    if (catalogLocations != null) {
+      final catalogLocation = catalogLocations!.firstWhere(
+        (loc) => loc.id == locationId,
+        orElse: () => CatalogLocation(id: -1, name: '', description: '', isActive: false),
+      );
+      if (catalogLocation.id != -1) {
+        return catalogLocation.name;
+      }
+    }
+
+    // Tipos de ubicación predefinidos
+    switch (locationId) {
+      case LocationTypes.REMOTE_DECLARED:
+        return 'Domicilio Declarado';
+      case LocationTypes.REMOTE_ALTERNATIVE:
+        return 'Domicilio Alternativo';
+      default:
+        return 'Ubicación Desconocida';
+    }
+  }
+
+  /// Muestra advertencia sobre conflictos de horarios
+  void _showScheduleWarning(BuildContext context, List<String> conflicts, TimeOfDay newTime, bool isStartTime) {
+    final timeType = isStartTime ? 'inicio' : 'fin';
+    final timeText = newTime.format(context);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange.shade600),
+            const SizedBox(width: 8),
+            const Text('Advertencia de Horarios'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Al cambiar el horario de $timeType a $timeText, las siguientes ubicaciones quedarán fuera del horario habitual:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            ...conflicts.map((conflict) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.location_on, 
+                    color: Colors.red.shade600, 
+                    size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      conflict,
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, 
+                        color: Colors.blue.shade600, 
+                        size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Recomendación:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Considera ajustar los horarios de estas ubicaciones para que estén dentro del horario habitual, o modifica el horario habitual para abarcar todas las ubicaciones.',
+                    style: TextStyle(color: Colors.blue.shade700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _suggestScheduleAdjustment(context, newTime, isStartTime);
+            },
+            child: const Text('Ver Sugerencias'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Sugiere ajustes automáticos de horarios
+  void _suggestScheduleAdjustment(BuildContext context, TimeOfDay newTime, bool isStartTime) {
+    // Calcular horarios óptimos basados en todas las ubicaciones
+    int earliestStart = newTime.hour * 60 + newTime.minute;
+    int latestEnd = newTime.hour * 60 + newTime.minute;
+
+    if (!isStartTime) {
+      earliestStart = userStartTime != null 
+          ? (userStartTime!.hour * 60 + userStartTime!.minute)
+          : (9 * 60);
+    } else {
+      latestEnd = userEndTime != null 
+          ? (userEndTime!.hour * 60 + userEndTime!.minute)
+          : (17 * 60);
+    }
+
+    // Incluir ubicaciones adicionales en el cálculo
+    for (final location in additionalLocations) {
+      final locationStart = location.startTime.hour * 60 + location.startTime.minute;
+      earliestStart = earliestStart < locationStart ? earliestStart : locationStart;
+
+      if (location.endTime != null) {
+        final locationEnd = location.endTime!.hour * 60 + location.endTime!.minute;
+        latestEnd = latestEnd > locationEnd ? latestEnd : locationEnd;
+      }
+    }
+
+    final suggestedStart = TimeOfDay(
+      hour: earliestStart ~/ 60,
+      minute: earliestStart % 60,
+    );
+    final suggestedEnd = TimeOfDay(
+      hour: latestEnd ~/ 60,
+      minute: latestEnd % 60,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sugerencia de Horarios'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Para abarcar todas las ubicaciones, se recomienda:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Inicio:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      Text(
+                        suggestedStart.format(context),
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Fin:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      Text(
+                        suggestedEnd.format(context),
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (onStartTimeChanged != null) {
+                onStartTimeChanged!(suggestedStart);
+              }
+              if (onEndTimeChanged != null) {
+                onEndTimeChanged!(suggestedEnd);
+              }
+            },
+            child: const Text('Aplicar Sugerencia'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Valida si la jornada está completa (9 horas mínimas)
+  WorkdayValidation _validateWorkday(BuildContext context) {
+    final validation = WorkdayValidation();
+    
+    // Si no hay horarios habituales, no podemos validar
+    if (userStartTime == null || userEndTime == null) {
+      validation.isValid = false;
+      validation.missingHours = 9.0;
+      validation.message = 'Configure sus horarios habituales antes de iniciar la jornada';
+      validation.suggestions = ['Toque los horarios habituales para configurarlos'];
+      return validation;
+    }
+
+    // Calcular duración de la jornada principal
+    final mainStartMinutes = userStartTime!.hour * 60 + userStartTime!.minute;
+    final mainEndMinutes = userEndTime!.hour * 60 + userEndTime!.minute;
+    final mainDurationMinutes = mainEndMinutes - mainStartMinutes;
+    
+    // Agregar duración de ubicaciones adicionales
+    double totalDurationMinutes = mainDurationMinutes.toDouble();
+    
+    for (final location in additionalLocations) {
+      if (location.endTime != null) {
+        final startMin = location.startTime.hour * 60 + location.startTime.minute;
+        final endMin = location.endTime!.hour * 60 + location.endTime!.minute;
+        totalDurationMinutes += (endMin - startMin);
+      }
+    }
+    
+    final totalHours = totalDurationMinutes / 60;
+    const requiredHours = 9.0;
+    
+    validation.totalHours = totalHours;
+    validation.requiredHours = requiredHours;
+    validation.isValid = totalHours >= requiredHours;
+    validation.missingHours = requiredHours - totalHours;
+    
+    if (!validation.isValid) {
+      validation.message = _generateWorkdayMessage(totalHours, requiredHours);
+      validation.suggestions = _generateWorkdaySuggestions(context, totalHours, requiredHours);
+    }
+    
+    return validation;
+  }
+
+  /// Genera mensaje explicativo sobre las horas faltantes
+  String _generateWorkdayMessage(double currentHours, double requiredHours) {
+    final missingHours = requiredHours - currentHours;
+    final missingHoursInt = missingHours.floor();
+    final missingMinutes = ((missingHours - missingHoursInt) * 60).round();
+    
+    String timeText = '';
+    if (missingHoursInt > 0 && missingMinutes > 0) {
+      timeText = '$missingHoursInt hora${missingHoursInt > 1 ? 's' : ''} y $missingMinutes minuto${missingMinutes > 1 ? 's' : ''}';
+    } else if (missingHoursInt > 0) {
+      timeText = '$missingHoursInt hora${missingHoursInt > 1 ? 's' : ''}';
+    } else {
+      timeText = '$missingMinutes minuto${missingMinutes > 1 ? 's' : ''}';
+    }
+    
+    return 'Su jornada actual es de ${currentHours.toStringAsFixed(1)} horas. Faltan $timeText para completar las 9 horas requeridas.';
+  }
+
+  /// Genera sugerencias para completar la jornada
+  List<String> _generateWorkdaySuggestions(BuildContext context, double currentHours, double requiredHours) {
+    final suggestions = <String>[];
+    final missingHours = requiredHours - currentHours;
+    
+    // Solo sugerir agregar ubicaciones adicionales o extender ligeramente
+    suggestions.add('Agregue ubicaciones adicionales que sumen ${missingHours.toStringAsFixed(1)} horas');
+    
+    if (additionalLocations.isEmpty) {
+      suggestions.add('Considere agregar una segunda ubicación de trabajo durante el día');
+    }
+    
+    // No sugerir extensiones de horarios - solo ubicaciones adicionales
+    suggestions.add('Use ubicaciones adicionales para completar las 9 horas requeridas en lugar de modificar horarios habituales');
+    
+    return suggestions;
+  }
+
+  /// Muestra diálogo de validación de jornada incompleta
+  void _showWorkdayValidationDialog(BuildContext context, WorkdayValidation validation) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.schedule, color: Colors.orange.shade600),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Jornada Incompleta')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, 
+                        color: Colors.orange.shade600, 
+                        size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Duración Actual: ${validation.totalHours.toStringAsFixed(1)} horas',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle_outline, 
+                        color: Colors.green.shade600, 
+                        size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Requeridas: ${validation.requiredHours} horas',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            Text(
+              validation.message,
+              style: const TextStyle(fontSize: 16),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            const Text(
+              'Sugerencias para completar su jornada:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            ...validation.suggestions.map((suggestion) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lightbulb_outline, 
+                    color: Colors.blue.shade600, 
+                    size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      suggestion,
+                      style: TextStyle(color: Colors.blue.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+          if (validation.suggestions.length > 2) // Si hay sugerencia específica
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _applyWorkdaySuggestion(context, validation);
+              },
+              child: const Text('Aplicar Sugerencia'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Aplica automáticamente la sugerencia de extensión de horarios
+  void _applyWorkdaySuggestion(BuildContext context, WorkdayValidation validation) {
+    if (userStartTime == null || userEndTime == null) return;
+    
+    final missingHours = validation.missingHours;
+    // Limitar extensión a máximo 30 minutos por lado
+    final extensionMinutes = ((missingHours * 60) / 2).round().clamp(15, 30);
+    
+    final currentStart = userStartTime!;
+    final currentEnd = userEndTime!;
+    
+    final currentStartMinutes = currentStart.hour * 60 + currentStart.minute;
+    final currentEndMinutes = currentEnd.hour * 60 + currentEnd.minute;
+    
+    // Límites razonables: no antes de 6:00 AM, no después de 8:00 PM
+    final earliestStart = 6 * 60; // 6:00 AM
+    final latestEnd = 20 * 60; // 8:00 PM
+    
+    final newStartMinutes = (currentStartMinutes - extensionMinutes).clamp(earliestStart, 23 * 60 + 59);
+    final newEndMinutes = (currentEndMinutes + extensionMinutes).clamp(0, latestEnd);
+    
+    final newStart = TimeOfDay(
+      hour: (newStartMinutes ~/ 60),
+      minute: (newStartMinutes % 60),
+    );
+    
+    final newEnd = TimeOfDay(
+      hour: (newEndMinutes ~/ 60),
+      minute: (newEndMinutes % 60),
+    );
+    
+    // Verificar que la sugerencia sea razonable
+    if (newStartMinutes < earliestStart || newEndMinutes > latestEnd) {
+      // Si no es razonable, mostrar mensaje alternativo
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Extensión no recomendada'),
+          content: const Text(
+            'Los horarios no se pueden extender de manera razonable (antes de 6:00 AM o después de 8:00 PM).\n\n'
+            'Se recomienda agregar ubicaciones adicionales para completar las 9 horas requeridas.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Horarios'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Se aplicarán los siguientes horarios habituales:'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Inicio:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          newStart.format(context), 
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Fin:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          newEnd.format(context), 
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '¿Confirmar estos horarios para iniciar la jornada?',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (onStartTimeChanged != null) {
+                onStartTimeChanged!(newStart);
+              }
+              if (onEndTimeChanged != null) {
+                onEndTimeChanged!(newEnd);
+              }
+            },
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Verifica si la jornada está completa (9 horas o más)
+  bool _isWorkdayComplete(BuildContext context) {
+    final validation = _validateWorkday(context);
+    return validation.isValid;
+  }
+
+  /// Obtiene el texto del estado de la jornada
+  String _getWorkdayStatusText(BuildContext context) {
+    final validation = _validateWorkday(context);
+    
+    if (validation.isValid) {
+      return 'Horarios configurados correctamente ✓';
+    } else {
+      return 'Completa tu horario de trabajo';
+    }
+  }
+
+  /// Construye la sección de horarios habituales
+  Widget _buildScheduleSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.schedule,
+                color: Colors.blue.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Horarios habituales:',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Horarios en fila
+          Row(
+            children: [
+              // Horario de inicio
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Inicio:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: isProcessing ? null : () async {
+                        if (onStartTimeChanged != null && userStartTime != null) {
+                          final TimeOfDay? picked = await showTimePicker(
+                            context: context,
+                            initialTime: userStartTime!,
+                          );
+                          if (picked != null) {
+                            // Validar coherencia de horarios antes de aplicar cambios
+                            _validateScheduleCoherence(context, picked, true);
+                            onStartTimeChanged!(picked);
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isProcessing ? Colors.grey.shade100 : Colors.white,
+                          border: Border.all(
+                            color: isProcessing ? Colors.grey.shade300 : Colors.blue.shade300,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time, 
+                              size: 16, 
+                              color: isProcessing ? Colors.grey.shade400 : Colors.blue.shade600,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              userStartTime?.format(context) ?? '09:00',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: isProcessing ? Colors.grey.shade600 : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Horario de fin
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fin:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: isProcessing ? null : () async {
+                        if (onEndTimeChanged != null && userEndTime != null) {
+                          final TimeOfDay? picked = await showTimePicker(
+                            context: context,
+                            initialTime: userEndTime!,
+                          );
+                          if (picked != null) {
+                            // Validar coherencia de horarios antes de aplicar cambios
+                            _validateScheduleCoherence(context, picked, false);
+                            onEndTimeChanged!(picked);
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isProcessing ? Colors.grey.shade100 : Colors.white,
+                          border: Border.all(
+                            color: isProcessing ? Colors.grey.shade300 : Colors.blue.shade300,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time, 
+                              size: 16, 
+                              color: isProcessing ? Colors.grey.shade400 : Colors.blue.shade600,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              userEndTime?.format(context) ?? '18:00',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: isProcessing ? Colors.grey.shade600 : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Información adicional
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: Colors.blue.shade600,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Toca para modificar tus horarios si necesitas trabajar en horarios diferentes hoy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Construye el selector de ubicación renovado
   Widget _buildNewLocationSelector(BuildContext context) {
     final locationOptions = _buildLocationOptions();
@@ -284,6 +1141,12 @@ class WorkStatusPanel extends StatelessWidget {
             ),
           ),
         ),
+        
+        // Sección de horarios habituales (solo si hay una ubicación seleccionada)
+        if (validSelectedLocation != null && (userStartTime != null || userEndTime != null)) ...[
+          const SizedBox(height: 20),
+          _buildScheduleSection(context),
+        ],
         
         // Campo de dirección si se selecciona "Domicilio Alternativo"
         if (validSelectedLocation == LocationTypes.REMOTE_ALTERNATIVE) ...[
@@ -466,17 +1329,37 @@ class WorkStatusPanel extends StatelessWidget {
   void _showAddLocationDialog(BuildContext context) async {
     if (onAddAdditionalLocation == null) return;
     
-    // Obtener IDs de ubicaciones ya seleccionadas (incluyendo la principal y adicionales)
-    final List<int> excludedIds = [
-      if (selectedSingleLocation != null) selectedSingleLocation!,
-      ...additionalLocations.map((loc) => loc.locationTypeId),
-    ];
+    // Crear lista de ubicaciones existentes incluyendo la jornada principal
+    List<WorkLocation> allExistingLocations = List.from(additionalLocations);
+    
+    // Agregar la ubicación principal como ubicación existente si está seleccionada
+    if (selectedSingleLocation != null && userStartTime != null && userEndTime != null) {
+      final locationName = _getLocationDisplayName(selectedSingleLocation!);
+      final mainWorkLocation = WorkLocation(
+        locationTypeId: selectedSingleLocation!,
+        locationDetail: locationName, // Usar el nombre como detail
+        startTime: userStartTime!,
+        endTime: userEndTime!,
+      );
+      allExistingLocations.insert(0, mainWorkLocation); // Insertar al principio
+      
+      print('DEBUG: Agregando ubicación principal para validación:');
+      print('  - Tipo: ${selectedSingleLocation}');
+      print('  - Detail: $locationName');
+      print('  - Horario: ${userStartTime!.format(context)} - ${userEndTime!.format(context)}');
+    }
+
+    print('DEBUG: Total ubicaciones existentes para validación: ${allExistingLocations.length}');
+    for (int i = 0; i < allExistingLocations.length; i++) {
+      final loc = allExistingLocations[i];
+      print('  ${i + 1}. ID: ${loc.locationTypeId}, Horario: ${loc.startTime.format(context)} - ${loc.endTime?.format(context) ?? 'Sin fin'}');
+    }
 
     final WorkLocation? newLocation = await AddLocationDialog.show(
       context: context,
       catalogLocations: catalogLocations,
       userDeclaredAddress: userDeclaredAddress,
-      excludedLocationIds: excludedIds,
+      existingLocations: allExistingLocations, // Incluir ubicación principal + adicionales
     );
 
     if (newLocation != null) {
@@ -514,7 +1397,9 @@ class WorkStatusPanel extends StatelessWidget {
   /// Obtiene el nombre a mostrar de una ubicación por su ID
   String _getLocationDisplayName(int locationId) {
     if (locationId == LocationTypes.REMOTE_DECLARED) {
-      return 'Domicilio Declarado';
+      return userDeclaredAddress?.isNotEmpty == true 
+          ? userDeclaredAddress! 
+          : 'Domicilio Declarado';
     } else if (locationId == LocationTypes.REMOTE_ALTERNATIVE) {
       return 'Domicilio Alternativo';
     } else {
@@ -1020,6 +1905,41 @@ class WorkStatusPanel extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
+            // Indicador de jornada completa - OCULTO POR SOLICITUD DEL USUARIO
+            // if (!isWorking && !dayCompleted && (userStartTime != null && userEndTime != null)) ...[
+            //   Container(
+            //     margin: const EdgeInsets.only(bottom: 12),
+            //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            //     decoration: BoxDecoration(
+            //       color: _isWorkdayComplete(context) ? Colors.green.shade50 : Colors.orange.shade50,
+            //       borderRadius: BorderRadius.circular(8),
+            //       border: Border.all(
+            //         color: _isWorkdayComplete(context) ? Colors.green.shade200 : Colors.orange.shade200,
+            //       ),
+            //     ),
+            //     child: Row(
+            //       children: [
+            //         Icon(
+            //           _isWorkdayComplete(context) ? Icons.check_circle : Icons.access_time,
+            //           size: 16,
+            //           color: _isWorkdayComplete(context) ? Colors.green.shade600 : Colors.orange.shade600,
+            //         ),
+            //         const SizedBox(width: 8),
+            //         Expanded(
+            //           child: Text(
+            //             _getWorkdayStatusText(context),
+            //             style: TextStyle(
+            //               fontSize: 12,
+            //               fontWeight: FontWeight.w500,
+            //               color: _isWorkdayComplete(context) ? Colors.green.shade700 : Colors.orange.shade700,
+            //             ),
+            //           ),
+            //         ),
+            //       ],
+            //     ),
+            //   ),
+            // ],
+
             // Botón principal (iniciar/terminar)
             CustomButton(
               text: dayCompleted
@@ -1032,7 +1952,13 @@ class WorkStatusPanel extends StatelessWidget {
                             onStopWork();
                           }
                         : () {
-                            onStartWork();
+                            // Validar jornada completa antes de iniciar
+                            final validation = _validateWorkday(context);
+                            if (validation.isValid) {
+                              onStartWork();
+                            } else {
+                              _showWorkdayValidationDialog(context, validation);
+                            }
                           }),
               isLoading: isProcessing,
               type: dayCompleted ? ButtonType.secondary : ButtonType.primary,

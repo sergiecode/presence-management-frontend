@@ -65,6 +65,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Mapa para horarios de ubicaciones múltiples: {locationId: TimeOfDay}
   Map<int, TimeOfDay> _locationSchedule = {};
 
+  // Horarios habituales del usuario
+  TimeOfDay? _userStartTime;
+  TimeOfDay? _userEndTime;
+
   // Campos adicionales para "Domicilio Alternativo"
   String? _otherLocationDetail;
   String? _otherLocationFloor;
@@ -148,6 +152,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  /// Maneja los cambios en el horario habitual de inicio
+  void _onUserStartTimeChanged(TimeOfDay newTime) {
+    if (!mounted) return;
+    setState(() {
+      _userStartTime = newTime;
+    });
+  }
+
+  /// Maneja los cambios en el horario habitual de fin
+  void _onUserEndTimeChanged(TimeOfDay newTime) {
+    if (!mounted) return;
+    setState(() {
+      _userEndTime = newTime;
+    });
+  }
+
   void _onOtherLocationChanged(String value) {
     if (!mounted) return;
     setState(() {
@@ -170,6 +190,81 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   // Funciones para manejar ubicaciones adicionales
+  
+  /// Obtiene los horarios habituales del usuario desde sus datos
+  Future<Map<String, TimeOfDay?>> _getUserHabitalSchedule() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+
+      if (token != null) {
+        final userData = await UserService.getCurrentUser(token);
+        
+        TimeOfDay? startTime;
+        TimeOfDay? endTime;
+        
+        // Extraer checkin_start_time
+        if (userData?['checkin_start_time'] != null && 
+            userData!['checkin_start_time'].toString().isNotEmpty) {
+          try {
+            final timeStr = userData['checkin_start_time'].toString();
+            final timeParts = timeStr.split(':');
+            if (timeParts.length >= 2) {
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+              startTime = TimeOfDay(hour: hour, minute: minute);
+            }
+          } catch (e) {
+            print('Error parseando checkin_start_time: $e');
+          }
+        }
+        
+        // Extraer checkout_end_time
+        if (userData?['checkout_end_time'] != null && 
+            userData!['checkout_end_time'].toString().isNotEmpty) {
+          try {
+            final timeStr = userData['checkout_end_time'].toString();
+            final timeParts = timeStr.split(':');
+            if (timeParts.length >= 2) {
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+              endTime = TimeOfDay(hour: hour, minute: minute);
+            }
+          } catch (e) {
+            print('Error parseando checkout_end_time: $e');
+          }
+        }
+        
+        return {
+          'startTime': startTime,
+          'endTime': endTime,
+        };
+      }
+    } catch (e) {
+      print('Error obteniendo horarios habituales del usuario: $e');
+    }
+    
+    // Valores por defecto
+    return {
+      'startTime': const TimeOfDay(hour: 9, minute: 0),
+      'endTime': const TimeOfDay(hour: 18, minute: 0),
+    };
+  }
+  
+  /// Convierte un TimeOfDay a formato UTC string para el backend
+  String _timeOfDayToUTC(TimeOfDay time, {DateTime? date}) {
+    final targetDate = date ?? DateTime.now();
+    final localDateTime = DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+      time.hour,
+      time.minute,
+    );
+    
+    final utcDateTime = localDateTime.toUtc();
+    return utcDateTime.toIso8601String();
+  }
   void _onAddAdditionalLocation(WorkLocation location) {
     if (!mounted) return;
     setState(() {
@@ -224,30 +319,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final userData = await UserService.getCurrentUser(widget.token);
       
       if (userData != null && mounted) {
-        setState(() {
-          // _userData = userData; // Comentado - no se usa actualmente
-        });
         print('HomePage: ✅ Datos del usuario cargados exitosamente');
+        print('HomePage: 🔍 Procesando domicilio declarado y horarios habituales...');
         
-        // Cargar dirección declarada por separado usando el nuevo endpoint
-        print('HomePage: 🔍 Cargando domicilio declarado...');
-        try {
-          final declaredAddressData = await UserService.getUserDeclaredAddress(widget.token);
-          print('HomePage: 📍 Datos raw del domicilio: $declaredAddressData');
-          if (declaredAddressData != null && mounted) {
-            final formattedAddress = UserService.formatDeclaredAddress(declaredAddressData);
-            print('HomePage: 📍 Dirección formateada: "$formattedAddress"');
-            setState(() {
-              _userDeclaredAddress = formattedAddress.isNotEmpty ? formattedAddress : null;
-            });
-            print('HomePage: ✅ Domicilio declarado establecido: ${_userDeclaredAddress ?? "No configurado"}');
-          } else {
-            print('HomePage: ❌ No se pudo obtener datos del domicilio declarado');
-          }
-        } catch (e) {
-          print('HomePage: ⚠️ Error cargando domicilio declarado: $e');
-          // No bloquear la UI, el domicilio declarado es opcional
+        // Obtener la dirección directamente del objeto location del usuario
+        if (userData['location'] != null) {
+          final location = userData['location'] as Map<String, dynamic>;
+          final formattedAddress = UserService.formatDeclaredAddress(location);
+          
+          setState(() {
+            _userDeclaredAddress = formattedAddress.isNotEmpty ? formattedAddress : null;
+          });
+          
+          print('HomePage: ✅ Domicilio declarado establecido: ${_userDeclaredAddress ?? "No configurado"}');
+        } else {
+          print('HomePage: ❌ No se encontró objeto location en los datos del usuario');
+          setState(() {
+            _userDeclaredAddress = null;
+          });
         }
+
+        // Cargar horarios habituales del usuario
+        final habitualSchedule = await _getUserHabitalSchedule();
+        setState(() {
+          _userStartTime = habitualSchedule['startTime'];
+          _userEndTime = habitualSchedule['endTime'];
+        });
+        print('HomePage: ✅ Horarios habituales establecidos: ${_userStartTime?.format(context)} - ${_userEndTime?.format(context)}');
       }
     } catch (e) {
       print('HomePage: ❌ Error cargando datos del usuario: $e');
@@ -760,16 +858,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    // Construir mensaje para el diálogo de confirmación
+    // Obtener los horarios habituales del usuario
+    final habitalSchedule = await _getUserHabitalSchedule();
+    final defaultStartTime = habitalSchedule['startTime'] ?? const TimeOfDay(hour: 9, minute: 0);
+    final defaultEndTime = habitalSchedule['endTime'] ?? const TimeOfDay(hour: 18, minute: 0);
+
+    // Construir mensaje para el diálogo de horarios
     String locationMessage = _buildLocationMessage();
 
-    // Mostrar diálogo de confirmación
-    final confirm = await WorkConfirmationDialog.showStartWorkDialog(
+    // Mostrar diálogo de selección de horarios
+    final selectedSchedule = await ScheduleSelectionDialog.show(
       context: context,
+      defaultStartTime: defaultStartTime,
+      defaultEndTime: defaultEndTime,
       locationName: locationMessage,
     );
 
-    if (confirm == true) {
+    if (selectedSchedule != null) {
+      final startTime = selectedSchedule['startTime']!;
+      final endTime = selectedSchedule['endTime']!;
+      
+      print('🕐 Horarios seleccionados por el usuario:');
+      print('   Inicio: ${startTime.format(context)}');
+      print('   Fin planificado: ${endTime.format(context)}');
+      
       if (mounted) {
         setState(() {
           _isProcessing = true;
@@ -789,43 +901,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           final userId = userData['id'];
 
-          // Obtener la fecha y hora actuales en el formato requerido RFC3339 (UTC)
+          // Obtener la fecha y hora actuales
           final now = DateTime.now();
           final nowUtc = now.toUtc();
           final date =
               '${nowUtc.year}-${nowUtc.month.toString().padLeft(2, '0')}-${nowUtc.day.toString().padLeft(2, '0')}';
-          final time = CheckInService.toRFC3339(now);
 
+          // Usar el horario seleccionado por el usuario (convertido a UTC)
+          final startTimeUtc = _timeOfDayToUTC(startTime);
+          final time = CheckInService.toRFC3339(now); // Hora actual para el check-in
+          
           // Debug del formato de fecha y hora
           print('HomePageDebug: DateTime original: $now');
           print('HomePageDebug: DateTime UTC: $nowUtc');
           print('HomePageDebug: Date formateado: $date');
-          print('HomePageDebug: Time RFC3339: $time');
+          print('HomePageDebug: Horario inicio seleccionado: ${startTime.format(context)}');
+          print('HomePageDebug: Horario inicio UTC: $startTimeUtc');
+          print('HomePageDebug: Time RFC3339 (check-in): $time');
 
-          // Determinar si llega tarde basado en la hora de inicio del usuario
-          TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0); // Hora por defecto
-          
-          // Si el usuario tiene una hora de inicio personalizada, usarla
-          if (userData['checkin_start_time'] != null && 
-              userData['checkin_start_time'].toString().isNotEmpty) {
-            try {
-              // Formato esperado: "HH:MM:SS" o "HH:MM"
-              final timeStr = userData['checkin_start_time'].toString();
-              final timeParts = timeStr.split(':');
-              if (timeParts.length >= 2) {
-                final hour = int.parse(timeParts[0]);
-                final minute = int.parse(timeParts[1]);
-                startTime = TimeOfDay(hour: hour, minute: minute);
-              }
-            } catch (e) {
-              print('Error parseando hora de inicio del usuario: $e');
-              // Usar hora por defecto si hay error
-            }
-          }
-          
+          // Determinar si llega tarde basado en el horario seleccionado
           final currentTime = TimeOfDay.fromDateTime(now);
-          
-          // Convertir TimeOfDay a minutos para comparar fácilmente
           final startMinutes = startTime.hour * 60 + startTime.minute;
           final currentMinutes = currentTime.hour * 60 + currentTime.minute;
           final isLate = currentMinutes > startMinutes;
@@ -875,12 +970,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           print('HomePageDebug: 📍 Agregando ubicación principal:');
           print('HomePageDebug:    location_type = $primaryLocationId');
           print('HomePageDebug:    location_detail = "$primaryLocationDetail"');
-          print('HomePageDebug:    start_time = "$time"');
+          print('HomePageDebug:    start_time = "$startTimeUtc"');
           
           locationsData.add({
             'location_type': primaryLocationId,
             'location_detail': primaryLocationDetail,
-            'start_time': time, // Siempre empieza ahora
+            'start_time': startTimeUtc, // Horario seleccionado en formato UTC
           });
           
           // 2. Agregar ubicaciones adicionales con sus horarios
@@ -905,11 +1000,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           print('HomePageDebug: === DATOS ENVIADOS AL SERVICIO ===');
           print('HomePageDebug: Usuario ID: $userId');
           print('HomePageDebug: Fecha actual: $now');
-          print('HomePageDebug: Hora de inicio esperada: ${startTime.hour}:${startTime.minute}');
+          print('HomePageDebug: Hora de inicio seleccionada: ${startTime.hour}:${startTime.minute}');
           print('HomePageDebug: Hora actual: ${currentTime.hour}:${currentTime.minute}');
           print('HomePageDebug: ¿Llega tarde?: $isLate');
           print('HomePageDebug: date = "$date"');
           print('HomePageDebug: time = "$time"');
+          print('HomePageDebug: startTimeUtc = "$startTimeUtc"');
           print('HomePageDebug: Datos completos: $checkInData');
           print('HomePageDebug: === FIN DATOS ===');
 
@@ -1357,8 +1453,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       print('📍 start_time: ${locationData['start_time']}');
       print('📍 end_time: ${locationData['end_time'] ?? 'No especificado'}');
 
+      // Obtener el ID de la ubicación actual para actualizarla
+      int? currentLocationId;
+      if (_locationHistory.isNotEmpty) {
+        // Buscar la ubicación actual (la que no tiene end_time)
+        final currentLocation = _locationHistory.firstWhere(
+          (location) => location['end_time'] == null,
+          orElse: () => _locationHistory.last,
+        );
+        currentLocationId = currentLocation['id'] as int?;
+        print('📍 ID de ubicación actual a editar: $currentLocationId');
+      }
+
+      if (currentLocationId == null) {
+        print('❌ Error: No se pudo obtener el ID de la ubicación actual');
+        if (mounted) {
+          _showErrorSnackBar('Error: No se pudo identificar la ubicación actual');
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+        return;
+      }
+
       // Llamar al servicio para cambiar ubicación durante trabajo
-      final response = await CheckInService.changeLocationDuringWork(token, locationData);
+      final response = await CheckInService.changeLocationDuringWork(token, currentLocationId, locationData);
 
       print('📝 Respuesta del servicio: $response');
 
@@ -1737,6 +1856,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onAddAdditionalLocation: _onAddAdditionalLocation,
                 onRemoveAdditionalLocation: _onRemoveAdditionalLocation,
                 onUpdateAdditionalLocation: _onUpdateAdditionalLocation,
+                // Horarios habituales del usuario
+                userStartTime: _userStartTime,
+                userEndTime: _userEndTime,
+                onStartTimeChanged: _onUserStartTimeChanged,
+                onEndTimeChanged: _onUserEndTimeChanged,
               ),
 
               // Aquí se podrían agregar más organismos como:

@@ -677,11 +677,14 @@ class CheckInService {
   /// Este método permite cambiar la ubicación actual del usuario mientras
   /// está trabajando, sin necesidad de hacer check-out y check-in nuevamente.
   ///
-  /// NOTA TEMPORAL: Mientras el backend no implemente el endpoint /change-location,
-  /// este método simula el comportamiento para testing del frontend.
+  /// Cambiar ubicación durante el trabajo
+  ///
+  /// Utiliza el endpoint PUT /api/checkins/locations/:id para actualizar
+  /// una ubicación específica durante la jornada laboral.
   ///
   /// Parámetros:
   /// - [token]: Token de autenticación del usuario
+  /// - [locationId]: ID de la ubicación a modificar
   /// - [locationData]: Datos de la nueva ubicación
   ///
   /// Retorna:
@@ -691,15 +694,17 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<Map<String, dynamic>?> changeLocationDuringWork(
     String token,
+    int locationId,
     Map<String, dynamic> locationData,
   ) async {
     try {
       print('🔄 CheckInService: Iniciando cambio de ubicación durante trabajo...');
+      print('🔄 CheckInService: ID de ubicación a editar: $locationId');
       print('🔄 CheckInService: Datos de ubicación: $locationData');
       print('🔄 CheckInService: Token presente: ${token.isNotEmpty}');
 
-      // Usar el endpoint correcto: PUT /api/checkins/locations
-      final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations';
+      // Usar el endpoint correcto: PUT /api/checkins/locations/:id
+      final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations/$locationId';
       print('🔄 CheckInService: URL completa: $url');
 
       final headers = {
@@ -712,33 +717,25 @@ class CheckInService {
       print('🔄 CheckInService: start_time en locationData: ${locationData['start_time']}');
       print('🔄 CheckInService: end_time en locationData: ${locationData['end_time']}');
       
+      // El nuevo formato del backend es más simple, solo los campos directos
       final requestBody = {
-        'locations': [
-          {
-            'location_type': locationData['location_type'],
-            'location_detail': locationData['location_detail'] ?? _buildLocationDetail(locationData),
-            'start_time': locationData['start_time'], // Hora seleccionada por el usuario
-            'end_time': locationData['end_time'], // Hora de fin (opcional)
-          }
-        ]
+        'location_type': locationData['location_type'],
+        'location_detail': locationData['location_detail'] ?? _buildLocationDetail(locationData),
+        'start_time': locationData['start_time'], // Hora seleccionada por el usuario
+        'end_time': locationData['end_time'], // Hora de fin (opcional)
       };
       
-      // Limpiar valores null del requestBody locations
-      final cleanedLocations = requestBody['locations']!.map((location) {
-        final Map<String, dynamic> cleanedLocation = {};
-        location.forEach((key, value) {
-          if (value != null) {
-            cleanedLocation[key] = value;
-          }
-        });
-        return cleanedLocation;
-      }).toList();
+      // Limpiar valores null del requestBody
+      final Map<String, dynamic> cleanedBody = {};
+      requestBody.forEach((key, value) {
+        if (value != null) {
+          cleanedBody[key] = value;
+        }
+      });
       
-      requestBody['locations'] = cleanedLocations;
-      
-      print('🔄 CheckInService: requestBody limpio: $requestBody');
+      print('🔄 CheckInService: requestBody limpio: $cleanedBody');
 
-      final jsonBody = json.encode(requestBody);
+      final jsonBody = json.encode(cleanedBody);
       print('🔄 CheckInService: Request headers: $headers');
       print('🔄 CheckInService: Request body: $jsonBody');
 
@@ -1050,8 +1047,11 @@ class CheckInService {
     }
 
     return {
+      'id': data['id'], // Preservar el ID de la ubicación para futuras actualizaciones
       'location_type': data['location_type'] ?? 1,
       'location_detail': data['location_detail']?.toString() ?? '',
+      'start_time': data['start_time']?.toString(), // Hora de inicio de la ubicación
+      'end_time': data['end_time']?.toString(), // Hora de fin de la ubicación (si la tiene)
       'timestamp': data['timestamp'] ?? data['created_at'] ?? data['updated_at'] ?? DateTime.now().toIso8601String(),
       'event': event,
       'description': description,
