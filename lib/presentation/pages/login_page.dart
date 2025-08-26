@@ -434,6 +434,81 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ],
               
+              // Debug info siempre visible (para testing)
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange, width: 1),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '🔧 DEBUG MODE ACTIVO',
+                      style: TextStyle(
+                        color: Colors.orange[800],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Panel visible: $_showDebugPanel',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      'Logs totales: ${_logger.logs.length}',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _showDebugPanel = !_showDebugPanel;
+                            });
+                            _logger.info(_showDebugPanel ? 'Panel de debug activado' : 'Panel de debug desactivado');
+                          },
+                          icon: Icon(_showDebugPanel ? Icons.visibility_off : Icons.visibility),
+                          label: Text(_showDebugPanel ? 'Ocultar Panel' : 'Mostrar Panel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _logger.info('Test log agregado manualmente');
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Log de prueba agregado'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Agregar Log'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
               const SizedBox(height: 40),
             ],
           ),
