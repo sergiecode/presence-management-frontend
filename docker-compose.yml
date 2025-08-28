@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  absistencia-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: absistencia-web
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    
+    # Variables de entorno (opcional)
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Configuración de recursos (opcional)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Opcional: Servidor de desarrollo con hot reload
+  absistencia-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: absistencia-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/build
+    environment:
+      - FLUTTER_WEB_PORT=3000
+    profiles:
+      - dev
+    command: flutter run -d web-server --web-port=3000 --web-hostname=0.0.0.0
