@@ -272,8 +272,8 @@ enum LogLevel {
   error(3),
   critical(4);
 
-  const LogLevel(this.index);
-  final int index;
+  const LogLevel(this.value);
+  final int value;
 }
 
 /// Extensiones útiles para logging

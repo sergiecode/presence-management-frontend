@@ -1,0 +1,19 @@
+# Dockerfile para desarrollo Flutter web con hot reload
+FROM ghcr.io/cirruslabs/flutter:latest
+
+# Instalar dependencias adicionales para desarrollo
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Habilitar Flutter web
+RUN flutter config --enable-web
+
+# Exponer puerto para desarrollo
+EXPOSE 3000
+
+# Comando por defecto para desarrollo
+CMD ["flutter", "run", "-d", "web-server", "--web-port=3000", "--web-hostname=0.0.0.0"]
