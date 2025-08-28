@@ -25,20 +25,41 @@ class WorkLocation {
   });
 
   /// Convierte la ubicación a formato JSON para la API
-  Map<String, dynamic> toJson() {
+  /// Si se proporciona [baseDate], convierte los horarios a UTC
+  Map<String, dynamic> toJson({DateTime? baseDate}) {
     return {
       'location_type': locationTypeId,
       'location_detail': locationDetail,
-      'start_time': _formatTimeOfDay(startTime),
-      if (endTime != null) 'end_time': _formatTimeOfDay(endTime!),
+      'start_time': baseDate != null 
+          ? _formatTimeToUtc(startTime, baseDate)
+          : _formatTimeOfDay(startTime),
+      if (endTime != null) 'end_time': baseDate != null
+          ? _formatTimeToUtc(endTime!, baseDate) 
+          : _formatTimeOfDay(endTime!),
     };
   }
 
-  /// Formatea TimeOfDay al formato HH:mm que espera la API
+  /// Formatea TimeOfDay al formato HH:mm que espera la API (DEPRECATED - usar toJson con baseDate)
   String _formatTimeOfDay(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// Convierte TimeOfDay a formato ISO 8601 UTC usando una fecha base
+  String _formatTimeToUtc(TimeOfDay time, DateTime baseDate) {
+    // Crear un DateTime con la fecha base y la hora especificada en zona local
+    final localDateTime = DateTime(
+      baseDate.year,
+      baseDate.month, 
+      baseDate.day,
+      time.hour,
+      time.minute,
+    );
+    
+    // Convertir a UTC y formatear como ISO 8601 UTC
+    final utcDateTime = localDateTime.toUtc();
+    return utcDateTime.toIso8601String();
   }
 
   /// Crea una copia de la ubicación con nuevos valores
@@ -75,8 +96,8 @@ class AdditionalLocation extends WorkLocation {
   });
 
   @override
-  Map<String, dynamic> toJson() {
-    final json = super.toJson();
+  Map<String, dynamic> toJson({DateTime? baseDate}) {
+    final json = super.toJson(baseDate: baseDate);
     if (notes != null && notes!.isNotEmpty) {
       json['notes'] = notes;
     }
@@ -109,6 +130,7 @@ class LocationOption {
   final String? description;
   final LocationSource source;
   final String? address;
+  final int? catalogId; // ID original del catálogo (para mapear al backend)
 
   LocationOption({
     required this.id,
@@ -116,6 +138,7 @@ class LocationOption {
     this.description,
     required this.source,
     this.address,
+    this.catalogId,
   });
 
   /// Convierte a formato para mostrar en dropdowns

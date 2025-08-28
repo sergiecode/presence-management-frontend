@@ -8,16 +8,16 @@
 /// - Base de datos: location_types table
 class LocationTypes {
   /// Trabajo remoto desde domicilio declarado
-  static const int REMOTE_DECLARED = -1;
+  static const int REMOTE_DECLARED = 1;
   
   /// Trabajo remoto desde ubicación alternativa (dirección especificada por el usuario)
-  static const int REMOTE_ALTERNATIVE = -2;
+  static const int REMOTE_ALTERNATIVE = 2;
   
   /// Trabajo en ubicación del cliente
-  static const int CLIENT = -3;
+  static const int CLIENT = 3;
   
   /// Trabajo en oficina de la empresa
-  static const int OFFICE = -4;
+  static const int OFFICE = 4;
 
   /// Múltiples ubicaciones (usado para agregar más ubicaciones durante el día)
   static const int MULTIPLE = 5;

@@ -122,6 +122,10 @@ class WorkStatusPanel extends StatelessWidget {
   final TimeOfDay? userStartTime;
   final TimeOfDay? userEndTime;
   
+  /// Horarios habituales ORIGINALES del backend (para validación)
+  final TimeOfDay? originalStartTime;
+  final TimeOfDay? originalEndTime;
+  
   /// Funciones para modificar horarios
   final Function(TimeOfDay)? onStartTimeChanged;
   final Function(TimeOfDay)? onEndTimeChanged;
@@ -163,6 +167,8 @@ class WorkStatusPanel extends StatelessWidget {
     // Horarios habituales
     this.userStartTime,
     this.userEndTime,
+    this.originalStartTime,
+    this.originalEndTime,
     this.onStartTimeChanged,
     this.onEndTimeChanged,
   });
@@ -205,12 +211,68 @@ class WorkStatusPanel extends StatelessWidget {
   }
 
   /// Construye las opciones de ubicación basadas en catálogos y domicilio declarado
+  /// Convierte el ID de la UI al location_type que espera el backend
+  int _getLocationTypeForBackend(int uiId) {
+    final locationOptions = _buildLocationOptions();
+    final option = locationOptions.firstWhere(
+      (opt) => opt.id == uiId,
+      orElse: () => LocationOption(
+        id: uiId,
+        name: 'Unknown',
+        source: LocationSource.catalog,
+      ),
+    );
+    
+    // Si es una ubicación de catálogo, usar el mapeo
+    if (option.source == LocationSource.catalog && option.catalogId != null) {
+      return _mapCatalogIdToLocationType(option.catalogId!);
+    }
+    
+    // Para domicilio declarado y alternativo, usar el ID directamente
+    return uiId;
+  }
+
+  /// Mapea el ID del catálogo al location_type que espera el backend
+  int _mapCatalogIdToLocationType(int catalogId) {
+    switch (catalogId) {
+      case 1: return 101; // Oficina ABSTI
+      case 2: return 102; // Swiss Medical
+      case 3: return 104; // Allianz 
+      case 4: return 103; // Galicia
+      default: return catalogId + 100; // Fallback genérico
+    }
+  }
+  
+  /// Mapea el location_type del backend al ID de la UI
+  int _getUIIdFromLocationTypeFromBackend(int backendLocationTypeId) {
+    // Para tipos básicos (1, 2), usar directamente
+    if (backendLocationTypeId == LocationTypes.REMOTE_DECLARED || 
+        backendLocationTypeId == LocationTypes.REMOTE_ALTERNATIVE) {
+      return backendLocationTypeId;
+    }
+    
+    // Para tipos de catálogo (101, 102, 103, 104), mapear a IDs únicos
+    final catalogId = _mapLocationTypeToCatalogId(backendLocationTypeId);
+    return 1000 + catalogId; // Convertir a ID único de UI
+  }
+
+  /// Mapea el location_type del backend al ID del catálogo
+  int _mapLocationTypeToCatalogId(int locationType) {
+    switch (locationType) {
+      case 101: return 1; // Oficina ABSTI
+      case 102: return 2; // Swiss Medical
+      case 104: return 3; // Allianz
+      case 103: return 4; // Galicia
+      default: return locationType > 100 ? locationType - 100 : locationType;
+    }
+  }
+
   List<LocationOption> _buildLocationOptions() {
     List<LocationOption> options = [];
 
-    // 1. Domicilio Declarado (siempre disponible)
+    // 1. Domicilio Declarado (siempre disponible) - usa ID único para UI
     options.add(LocationOption(
-      id: LocationTypes.REMOTE_DECLARED,
+      id: LocationTypes.REMOTE_DECLARED, // ID 1
       name: 'Domicilio Declarado',
       description: userDeclaredAddress?.isNotEmpty == true 
           ? userDeclaredAddress 
@@ -218,24 +280,25 @@ class WorkStatusPanel extends StatelessWidget {
       source: LocationSource.declaredAddress,
     ));
 
-    // 2. Domicilio Alternativo (siempre disponible)
+    // 2. Domicilio Alternativo (siempre disponible) - usa ID único para UI
     options.add(LocationOption(
-      id: LocationTypes.REMOTE_ALTERNATIVE,
+      id: LocationTypes.REMOTE_ALTERNATIVE, // ID 2
       name: 'Domicilio Alternativo',
       description: 'Trabajar desde una dirección alternativa',
       source: LocationSource.alternativeAddress,
     ));
 
-    // 3. Ubicaciones del catálogo (oficinas, clientes, etc.)
+    // 3. Ubicaciones del catálogo - usa IDs únicos empezando desde 1000
     if (catalogLocations != null) {
       for (final catalogLocation in catalogLocations!) {
         if (catalogLocation.isActive) {
           options.add(LocationOption(
-            id: catalogLocation.id,
+            id: 1000 + catalogLocation.id, // ID único: 1001, 1002, 1003, 1004
             name: catalogLocation.name,
             description: catalogLocation.description ?? catalogLocation.address,
             source: LocationSource.catalog,
             address: catalogLocation.address,
+            catalogId: catalogLocation.id, // Guardamos el ID original del catálogo
           ));
         }
       }
@@ -279,7 +342,7 @@ class WorkStatusPanel extends StatelessWidget {
 
       // Verificar si la ubicación adicional queda fuera del nuevo horario habitual
       if (locationStart < effectiveStartMinutes || locationEnd > effectiveEndMinutes) {
-        final locationName = _getLocationDisplayNameForValidation(location.locationTypeId);
+        final locationName = _getLocationDisplayNameFromBackendType(location.locationTypeId);
         final timeRange = location.endTime != null
             ? '${location.startTime.format(context)} - ${location.endTime!.format(context)}'
             : 'desde ${location.startTime.format(context)}';
@@ -288,30 +351,6 @@ class WorkStatusPanel extends StatelessWidget {
     }
 
     return conflicts;
-  }
-
-  /// Obtiene el nombre para mostrar de una ubicación (para validaciones)
-  String _getLocationDisplayNameForValidation(int locationId) {
-    // Buscar en ubicaciones del catálogo
-    if (catalogLocations != null) {
-      final catalogLocation = catalogLocations!.firstWhere(
-        (loc) => loc.id == locationId,
-        orElse: () => CatalogLocation(id: -1, name: '', description: '', isActive: false),
-      );
-      if (catalogLocation.id != -1) {
-        return catalogLocation.name;
-      }
-    }
-
-    // Tipos de ubicación predefinidos
-    switch (locationId) {
-      case LocationTypes.REMOTE_DECLARED:
-        return 'Domicilio Declarado';
-      case LocationTypes.REMOTE_ALTERNATIVE:
-        return 'Domicilio Alternativo';
-      default:
-        return 'Ubicación Desconocida';
-    }
   }
 
   /// Muestra advertencia sobre conflictos de horarios
@@ -384,7 +423,7 @@ class WorkStatusPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Considera ajustar los horarios de estas ubicaciones para que estén dentro del horario habitual, o modifica el horario habitual para abarcar todas las ubicaciones.',
+                    'Revisa y ajusta manualmente los horarios de estas ubicaciones o modifica tu horario habitual para que sea consistente.',
                     style: TextStyle(color: Colors.blue.shade700),
                   ),
                 ],
@@ -397,315 +436,145 @@ class WorkStatusPanel extends StatelessWidget {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Entendido'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _suggestScheduleAdjustment(context, newTime, isStartTime);
-            },
-            child: const Text('Ver Sugerencias'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Sugiere ajustes automáticos de horarios
-  void _suggestScheduleAdjustment(BuildContext context, TimeOfDay newTime, bool isStartTime) {
-    // Calcular horarios óptimos basados en todas las ubicaciones
-    int earliestStart = newTime.hour * 60 + newTime.minute;
-    int latestEnd = newTime.hour * 60 + newTime.minute;
-
-    if (!isStartTime) {
-      earliestStart = userStartTime != null 
-          ? (userStartTime!.hour * 60 + userStartTime!.minute)
-          : (9 * 60);
-    } else {
-      latestEnd = userEndTime != null 
-          ? (userEndTime!.hour * 60 + userEndTime!.minute)
-          : (17 * 60);
-    }
-
-    // Incluir ubicaciones adicionales en el cálculo
-    for (final location in additionalLocations) {
-      final locationStart = location.startTime.hour * 60 + location.startTime.minute;
-      earliestStart = earliestStart < locationStart ? earliestStart : locationStart;
-
-      if (location.endTime != null) {
-        final locationEnd = location.endTime!.hour * 60 + location.endTime!.minute;
-        latestEnd = latestEnd > locationEnd ? latestEnd : locationEnd;
-      }
-    }
-
-    final suggestedStart = TimeOfDay(
-      hour: earliestStart ~/ 60,
-      minute: earliestStart % 60,
-    );
-    final suggestedEnd = TimeOfDay(
-      hour: latestEnd ~/ 60,
-      minute: latestEnd % 60,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sugerencia de Horarios'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Para abarcar todas las ubicaciones, se recomienda:',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Inicio:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                      Text(
-                        suggestedStart.format(context),
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Fin:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                      Text(
-                        suggestedEnd.format(context),
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (onStartTimeChanged != null) {
-                onStartTimeChanged!(suggestedStart);
-              }
-              if (onEndTimeChanged != null) {
-                onEndTimeChanged!(suggestedEnd);
-              }
-            },
-            child: const Text('Aplicar Sugerencia'),
+            child: const Text('Modificar Manualmente'),
           ),
         ],
       ),
     );
   }
 
-  /// Valida si la jornada está completa (9 horas mínimas)
-  WorkdayValidation _validateWorkday(BuildContext context) {
-    final validation = WorkdayValidation();
+  /// Calcula la hora de inicio efectiva que se debe mostrar (considerando si llego tarde)
+  TimeOfDay _getEffectiveStartTime() {
+    if (originalStartTime == null) return userStartTime ?? const TimeOfDay(hour: 9, minute: 0);
     
-    // Si no hay horarios habituales, no podemos validar
-    if (userStartTime == null || userEndTime == null) {
-      validation.isValid = false;
-      validation.missingHours = 9.0;
-      validation.message = 'Configure sus horarios habituales antes de iniciar la jornada';
-      validation.suggestions = ['Toque los horarios habituales para configurarlos'];
-      return validation;
+    final currentTime = TimeOfDay.now();
+    final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+    final habitualStartMinutes = originalStartTime!.hour * 60 + originalStartTime!.minute;
+    
+    // Lógica clara y simple:
+    // - Si es ANTES del horario habitual: mostrar horario habitual
+    // - Si es DESPUÉS del horario habitual: mostrar hora actual (NOW)
+    if (currentMinutes > habitualStartMinutes) {
+      // Es más tarde que el horario habitual → mostrar hora actual
+      return currentTime;
+    } else {
+      // Es más temprano o igual → mostrar horario habitual
+      return originalStartTime!;
     }
+  }
 
-    // Calcular duración de la jornada principal
-    final mainStartMinutes = userStartTime!.hour * 60 + userStartTime!.minute;
-    final mainEndMinutes = userEndTime!.hour * 60 + userEndTime!.minute;
-    final mainDurationMinutes = mainEndMinutes - mainStartMinutes;
+  /// Muestra un time picker con validaciones inteligentes basadas en horarios habituales y hora actual
+  Future<TimeOfDay?> _showValidatedTimePicker({
+    required BuildContext context,
+    required TimeOfDay initialTime,
+    required bool isStartTime,
+  }) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
     
-    // Agregar duración de ubicaciones adicionales
-    double totalDurationMinutes = mainDurationMinutes.toDouble();
+    if (picked == null) return null;
     
-    for (final location in additionalLocations) {
-      if (location.endTime != null) {
-        final startMin = location.startTime.hour * 60 + location.startTime.minute;
-        final endMin = location.endTime!.hour * 60 + location.endTime!.minute;
-        totalDurationMinutes += (endMin - startMin);
+    final pickedMinutes = picked.hour * 60 + picked.minute;
+    
+    if (isStartTime) {
+      // Para hora de INICIO: lógica basada en horario habitual vs hora actual
+      final currentTime = TimeOfDay.now();
+      final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+      
+      if (originalStartTime != null) {
+        final habitualStartMinutes = originalStartTime!.hour * 60 + originalStartTime!.minute;
+        
+        int minimumStartMinutes;
+        String reason;
+        
+        if (currentMinutes > habitualStartMinutes) {
+          // Si llego tarde: usar hora del celular como mínimo
+          minimumStartMinutes = currentMinutes;
+          reason = 'Estás llegando tarde. Tu horario habitual era ${originalStartTime!.format(context)}, pero ya son las ${currentTime.format(context)}';
+        } else {
+          // Si llegué temprano o a tiempo: usar horario habitual como mínimo
+          minimumStartMinutes = habitualStartMinutes;
+          reason = 'No puedes iniciar antes de tu horario habitual (${originalStartTime!.format(context)})';
+        }
+        
+        if (pickedMinutes < minimumStartMinutes) {
+          final limitTime = TimeOfDay(
+            hour: minimumStartMinutes ~/ 60,
+            minute: minimumStartMinutes % 60,
+          );
+          
+          _showTimeValidationError(
+            context: context,
+            message: 'No puedes iniciar antes de las ${limitTime.format(context)}',
+            subtitle: reason,
+          );
+          return null;
+        }
+      }
+    } else {
+      // Para hora de FIN: NO puede ser después del horario habitual del backend
+      if (originalEndTime != null) {
+        final habitualEndMinutes = originalEndTime!.hour * 60 + originalEndTime!.minute;
+        if (pickedMinutes > habitualEndMinutes) {
+          _showTimeValidationError(
+            context: context,
+            message: 'No puedes terminar después de tu horario habitual (${originalEndTime!.format(context)})',
+            subtitle: 'Solo puedes modificar hacia atrás tu horario de fin',
+          );
+          return null;
+        }
+      }
+      
+      // También validar que sea después de la hora de inicio actual
+      if (userStartTime != null) {
+        final startMinutes = userStartTime!.hour * 60 + userStartTime!.minute;
+        if (pickedMinutes <= startMinutes) {
+          _showTimeValidationError(
+            context: context,
+            message: 'La hora de fin debe ser posterior a tu hora de inicio (${userStartTime!.format(context)})',
+            subtitle: 'Selecciona una hora posterior para terminar tu jornada',
+          );
+          return null;
+        }
       }
     }
     
-    final totalHours = totalDurationMinutes / 60;
-    const requiredHours = 9.0;
-    
-    validation.totalHours = totalHours;
-    validation.requiredHours = requiredHours;
-    validation.isValid = totalHours >= requiredHours;
-    validation.missingHours = requiredHours - totalHours;
-    
-    if (!validation.isValid) {
-      validation.message = _generateWorkdayMessage(totalHours, requiredHours);
-      validation.suggestions = _generateWorkdaySuggestions(context, totalHours, requiredHours);
-    }
-    
-    return validation;
+    return picked;
   }
 
-  /// Genera mensaje explicativo sobre las horas faltantes
-  String _generateWorkdayMessage(double currentHours, double requiredHours) {
-    final missingHours = requiredHours - currentHours;
-    final missingHoursInt = missingHours.floor();
-    final missingMinutes = ((missingHours - missingHoursInt) * 60).round();
-    
-    String timeText = '';
-    if (missingHoursInt > 0 && missingMinutes > 0) {
-      timeText = '$missingHoursInt hora${missingHoursInt > 1 ? 's' : ''} y $missingMinutes minuto${missingMinutes > 1 ? 's' : ''}';
-    } else if (missingHoursInt > 0) {
-      timeText = '$missingHoursInt hora${missingHoursInt > 1 ? 's' : ''}';
-    } else {
-      timeText = '$missingMinutes minuto${missingMinutes > 1 ? 's' : ''}';
-    }
-    
-    return 'Su jornada actual es de ${currentHours.toStringAsFixed(1)} horas. Faltan $timeText para completar las 9 horas requeridas.';
-  }
-
-  /// Genera sugerencias para completar la jornada
-  List<String> _generateWorkdaySuggestions(BuildContext context, double currentHours, double requiredHours) {
-    final suggestions = <String>[];
-    final missingHours = requiredHours - currentHours;
-    
-    // Solo sugerir agregar ubicaciones adicionales o extender ligeramente
-    suggestions.add('Agregue ubicaciones adicionales que sumen ${missingHours.toStringAsFixed(1)} horas');
-    
-    if (additionalLocations.isEmpty) {
-      suggestions.add('Considere agregar una segunda ubicación de trabajo durante el día');
-    }
-    
-    // No sugerir extensiones de horarios - solo ubicaciones adicionales
-    suggestions.add('Use ubicaciones adicionales para completar las 9 horas requeridas en lugar de modificar horarios habituales');
-    
-    return suggestions;
-  }
-
-  /// Muestra diálogo de validación de jornada incompleta
-  void _showWorkdayValidationDialog(BuildContext context, WorkdayValidation validation) {
+  /// Muestra diálogo de error de validación de horarios
+  void _showTimeValidationError({
+    required BuildContext context,
+    required String message,
+    required String subtitle,
+  }) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.schedule, color: Colors.orange.shade600),
+            Icon(Icons.access_time_filled, color: Colors.orange.shade600),
             const SizedBox(width: 8),
-            const Expanded(child: Text('Jornada Incompleta')),
+            const Expanded(child: Text('Horario no permitido')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.access_time, 
-                        color: Colors.orange.shade600, 
-                        size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Duración Actual: ${validation.totalHours.toStringAsFixed(1)} horas',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.check_circle_outline, 
-                        color: Colors.green.shade600, 
-                        size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Requeridas: ${validation.requiredHours} horas',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
             Text(
-              validation.message,
-              style: const TextStyle(fontSize: 16),
+              message,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
-            
-            const SizedBox(height: 16),
-            
-            const Text(
-              'Sugerencias para completar su jornada:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.grey.shade700),
             ),
-            
-            const SizedBox(height: 12),
-            
-            ...validation.suggestions.map((suggestion) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.lightbulb_outline, 
-                    color: Colors.blue.shade600, 
-                    size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      suggestion,
-                      style: TextStyle(color: Colors.blue.shade700),
-                    ),
-                  ),
-                ],
-              ),
-            )).toList(),
           ],
         ),
         actions: [
@@ -713,182 +582,9 @@ class WorkStatusPanel extends StatelessWidget {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Entendido'),
           ),
-          if (validation.suggestions.length > 2) // Si hay sugerencia específica
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _applyWorkdaySuggestion(context, validation);
-              },
-              child: const Text('Aplicar Sugerencia'),
-            ),
         ],
       ),
     );
-  }
-
-  /// Aplica automáticamente la sugerencia de extensión de horarios
-  void _applyWorkdaySuggestion(BuildContext context, WorkdayValidation validation) {
-    if (userStartTime == null || userEndTime == null) return;
-    
-    final missingHours = validation.missingHours;
-    // Limitar extensión a máximo 30 minutos por lado
-    final extensionMinutes = ((missingHours * 60) / 2).round().clamp(15, 30);
-    
-    final currentStart = userStartTime!;
-    final currentEnd = userEndTime!;
-    
-    final currentStartMinutes = currentStart.hour * 60 + currentStart.minute;
-    final currentEndMinutes = currentEnd.hour * 60 + currentEnd.minute;
-    
-    // Límites razonables: no antes de 6:00 AM, no después de 8:00 PM
-    final earliestStart = 6 * 60; // 6:00 AM
-    final latestEnd = 20 * 60; // 8:00 PM
-    
-    final newStartMinutes = (currentStartMinutes - extensionMinutes).clamp(earliestStart, 23 * 60 + 59);
-    final newEndMinutes = (currentEndMinutes + extensionMinutes).clamp(0, latestEnd);
-    
-    final newStart = TimeOfDay(
-      hour: (newStartMinutes ~/ 60),
-      minute: (newStartMinutes % 60),
-    );
-    
-    final newEnd = TimeOfDay(
-      hour: (newEndMinutes ~/ 60),
-      minute: (newEndMinutes % 60),
-    );
-    
-    // Verificar que la sugerencia sea razonable
-    if (newStartMinutes < earliestStart || newEndMinutes > latestEnd) {
-      // Si no es razonable, mostrar mensaje alternativo
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Extensión no recomendada'),
-          content: const Text(
-            'Los horarios no se pueden extender de manera razonable (antes de 6:00 AM o después de 8:00 PM).\n\n'
-            'Se recomienda agregar ubicaciones adicionales para completar las 9 horas requeridas.'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Entendido'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar Horarios'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Se aplicarán los siguientes horarios habituales:'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Inicio:', style: TextStyle(fontWeight: FontWeight.w600)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          newStart.format(context), 
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Fin:', style: TextStyle(fontWeight: FontWeight.w600)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          newEnd.format(context), 
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '¿Confirmar estos horarios para iniciar la jornada?',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (onStartTimeChanged != null) {
-                onStartTimeChanged!(newStart);
-              }
-              if (onEndTimeChanged != null) {
-                onEndTimeChanged!(newEnd);
-              }
-            },
-            child: const Text('Aplicar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Verifica si la jornada está completa (9 horas o más)
-  bool _isWorkdayComplete(BuildContext context) {
-    final validation = _validateWorkday(context);
-    return validation.isValid;
-  }
-
-  /// Obtiene el texto del estado de la jornada
-  String _getWorkdayStatusText(BuildContext context) {
-    final validation = _validateWorkday(context);
-    
-    if (validation.isValid) {
-      return 'Horarios configurados correctamente ✓';
-    } else {
-      return 'Completa tu horario de trabajo';
-    }
   }
 
   /// Construye la sección de horarios habituales
@@ -912,7 +608,7 @@ class WorkStatusPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Horarios habituales:',
+                'Horarios:',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.blue.shade700,
@@ -943,10 +639,11 @@ class WorkStatusPanel extends StatelessWidget {
                     const SizedBox(height: 8),
                     InkWell(
                       onTap: isProcessing ? null : () async {
-                        if (onStartTimeChanged != null && userStartTime != null) {
-                          final TimeOfDay? picked = await showTimePicker(
-                            context: context,
-                            initialTime: userStartTime!,
+                        if (onStartTimeChanged != null) {
+                          final TimeOfDay? picked = await _showValidatedTimePicker(
+                            context: context, 
+                            initialTime: _getEffectiveStartTime(),
+                            isStartTime: true,
                           );
                           if (picked != null) {
                             // Validar coherencia de horarios antes de aplicar cambios
@@ -973,7 +670,7 @@ class WorkStatusPanel extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              userStartTime?.format(context) ?? '09:00',
+                              _getEffectiveStartTime().format(context),
                               style: TextStyle(
                                 fontSize: 16,
                                 color: isProcessing ? Colors.grey.shade600 : Colors.black87,
@@ -1006,9 +703,10 @@ class WorkStatusPanel extends StatelessWidget {
                     InkWell(
                       onTap: isProcessing ? null : () async {
                         if (onEndTimeChanged != null && userEndTime != null) {
-                          final TimeOfDay? picked = await showTimePicker(
-                            context: context,
+                          final TimeOfDay? picked = await _showValidatedTimePicker(
+                            context: context, 
                             initialTime: userEndTime!,
+                            isStartTime: false,
                           );
                           if (picked != null) {
                             // Validar coherencia de horarios antes de aplicar cambios
@@ -1064,7 +762,7 @@ class WorkStatusPanel extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Toca para modificar tus horarios si necesitas trabajar en horarios diferentes hoy',
+                  'Puedes modificar tus horarios si necesitas trabajar en horarios diferentes hoy',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.blue.shade600,
@@ -1228,11 +926,14 @@ class WorkStatusPanel extends StatelessWidget {
           final int index = entry.key;
           final WorkLocation location = entry.value;
           final locationOptions = _buildLocationOptions();
+          
+          // Mapear el backend location_type al UI ID correcto
+          final uiLocationId = _getUIIdFromLocationTypeFromBackend(location.locationTypeId);
           final locationOption = locationOptions.firstWhere(
-            (opt) => opt.id == location.locationTypeId,
+            (opt) => opt.id == uiLocationId,
             orElse: () => LocationOption(
-              id: location.locationTypeId,
-              name: 'Ubicación',
+              id: uiLocationId,
+              name: 'Ubicación ${location.locationTypeId}',
               source: LocationSource.catalog,
             ),
           );
@@ -1335,8 +1036,9 @@ class WorkStatusPanel extends StatelessWidget {
     // Agregar la ubicación principal como ubicación existente si está seleccionada
     if (selectedSingleLocation != null && userStartTime != null && userEndTime != null) {
       final locationName = _getLocationDisplayName(selectedSingleLocation!);
+      final backendLocationTypeId = _getLocationTypeForBackend(selectedSingleLocation!);
       final mainWorkLocation = WorkLocation(
-        locationTypeId: selectedSingleLocation!,
+        locationTypeId: backendLocationTypeId, // Usar el location_type correcto para el backend
         locationDetail: locationName, // Usar el nombre como detail
         startTime: userStartTime!,
         endTime: userEndTime!,
@@ -1344,7 +1046,8 @@ class WorkStatusPanel extends StatelessWidget {
       allExistingLocations.insert(0, mainWorkLocation); // Insertar al principio
       
       print('DEBUG: Agregando ubicación principal para validación:');
-      print('  - Tipo: ${selectedSingleLocation}');
+      print('  - UI ID: $selectedSingleLocation');
+      print('  - Backend Location Type: $backendLocationTypeId');
       print('  - Detail: $locationName');
       print('  - Horario: ${userStartTime!.format(context)} - ${userEndTime!.format(context)}');
     }
@@ -1369,6 +1072,12 @@ class WorkStatusPanel extends StatelessWidget {
 
   /// Construye el mensaje que muestra las ubicaciones donde se está trabajando
   String _buildWorkingLocationMessage(BuildContext context) {
+    // Si hay historial de ubicaciones, usarlo directamente
+    if (locationHistory != null && locationHistory!.isNotEmpty) {
+      return _buildWorkingLocationMessageFromHistory(context);
+    }
+    
+    // Fallback al método anterior si no hay historial
     List<String> locationParts = [];
 
     // Agregar la ubicación principal
@@ -1379,7 +1088,7 @@ class WorkStatusPanel extends StatelessWidget {
 
     // Agregar ubicaciones adicionales con horarios
     for (final additionalLocation in additionalLocations) {
-      String additionalLocationName = _getLocationDisplayName(additionalLocation.locationTypeId);
+      String additionalLocationName = _getLocationDisplayNameFromBackendType(additionalLocation.locationTypeId);
       String timeRange = additionalLocation.startTime.format(context);
       if (additionalLocation.endTime != null) {
         timeRange += ' - ${additionalLocation.endTime!.format(context)}';
@@ -1388,9 +1097,94 @@ class WorkStatusPanel extends StatelessWidget {
     }
 
     if (locationParts.length == 1) {
+      return 'TRABAJANDO DESDE: ${locationParts.first}';
+    } else {
+      return 'HOY TRABAJARÁS DESDE:\n\n${locationParts.map((part) => '• $part').join('\n')}';
+    }
+  }
+
+  /// Construye el mensaje usando directamente el historial de ubicaciones
+  String _buildWorkingLocationMessageFromHistory(BuildContext context) {
+    if (locationHistory == null || locationHistory!.isEmpty) return '';
+    
+    List<String> locationParts = [];
+    
+    // Mapear correctamente cada ubicación del historial
+    for (int i = 0; i < locationHistory!.length; i++) {
+      final location = locationHistory![i];
+      final backendLocationDetail = location['location_detail'] as String? ?? '';
+      final locationTypeId = location['location_type'] as int?;
+      final startTime = location['start_time'] as String?;
+      final endTime = location['end_time'] as String?;
+      
+      // MAPEO CORRECTO: No usar directamente el backend, sino mapear
+      String locationText = '';
+      
+      if (locationTypeId != null) {
+        // Usar nuestro mapeo para obtener el nombre correcto
+        switch (locationTypeId) {
+          case 101:
+            locationText = 'Oficina ABSTI';
+            break;
+          case 102:
+            locationText = 'Oficina de Swiss Medical Group';
+            break;
+          case 103:
+            locationText = 'Oficina Galicia';
+            break;
+          case 104:
+            locationText = 'Oficina Allianz';
+            break;
+          case 1:
+            locationText = 'Domicilio Declarado';
+            break;
+          case 2:
+            locationText = 'Domicilio Alternativo';
+            break;
+          default:
+            // Para otros tipos, usar backend detail si no está vacío/desconocido
+            if (backendLocationDetail.isNotEmpty && 
+                !backendLocationDetail.toLowerCase().contains('desconocido')) {
+              locationText = backendLocationDetail;
+            } else {
+              locationText = 'Ubicación $locationTypeId';
+            }
+            break;
+        }
+      } else {
+        // Si no hay locationTypeId, usar backend como fallback
+        locationText = backendLocationDetail.isNotEmpty ? backendLocationDetail : 'Ubicación';
+      }
+      
+      // Agregar horarios si están disponibles (convertir de UTC a local)
+      if (startTime != null) {
+        try {
+          final startDateTime = DateTime.parse(startTime);
+          final localStartTime = startDateTime.toLocal();
+          String timeRange = '${localStartTime.hour.toString().padLeft(2, '0')}:${localStartTime.minute.toString().padLeft(2, '0')}';
+          
+          if (endTime != null) {
+            final endDateTime = DateTime.parse(endTime);
+            final localEndTime = endDateTime.toLocal();
+            timeRange += ' - ${localEndTime.hour.toString().padLeft(2, '0')}:${localEndTime.minute.toString().padLeft(2, '0')}';
+          }
+          
+          locationText += ' ($timeRange)';
+        } catch (e) {
+          print('Error formateando horarios para ubicación: $e');
+          // Si hay error formateando horarios, mostrar solo la ubicación
+        }
+      }
+      
+      locationParts.add(locationText);
+    }
+    
+    if (locationParts.isEmpty) {
+      return 'Trabajando desde ubicación no especificada';
+    } else if (locationParts.length == 1) {
       return 'Trabajando desde: ${locationParts.first}';
     } else {
-      return 'Hoy trabajarás desde:\n${locationParts.map((part) => '• $part').join('\n')}';
+      return 'Hoy trabajarás desde:\n\n${locationParts.map((part) => '• $part').join('\n')}';
     }
   }
 
@@ -1403,18 +1197,74 @@ class WorkStatusPanel extends StatelessWidget {
     } else if (locationId == LocationTypes.REMOTE_ALTERNATIVE) {
       return 'Domicilio Alternativo';
     } else {
-      // Buscar en el catálogo
+      // Si es un ID de la UI del catálogo (1001, 1002, 1003, 1004), convertirlo al ID real del catálogo
+      int realCatalogId = locationId;
+      if (locationId >= 1001 && locationId <= 1004) {
+        realCatalogId = locationId - 1000; // 1001 -> 1, 1002 -> 2, etc.
+      }
+      
+      // Buscar en el catálogo con el ID real
       if (catalogLocations != null) {
         try {
           final catalogLocation = catalogLocations!.firstWhere(
-            (cat) => cat.id == locationId,
+            (cat) => cat.id == realCatalogId,
+          );
+          return catalogLocation.name;
+        } catch (e) {
+          // Si no se encuentra en el catálogo, intentar con nombres hardcodeados
+        }
+      }
+      
+      // Fallback con nombres hardcodeados para IDs del backend
+      switch (locationId) {
+        case 101:
+          return 'Oficina ABSTI';
+        case 102:
+          return 'Oficina de Swiss Medical Group';
+        case 103:
+          return 'Oficina Galicia';
+        case 104:
+          return 'Oficina Allianz';
+      }
+      
+      return 'Ubicación Desconocida ($locationId)';
+    }
+  }
+
+  /// Obtiene el nombre de la ubicación desde el location_type del backend
+  String _getLocationDisplayNameFromBackendType(int backendLocationTypeId) {
+    if (backendLocationTypeId == LocationTypes.REMOTE_DECLARED) {
+      return userDeclaredAddress?.isNotEmpty == true 
+          ? userDeclaredAddress! 
+          : 'Domicilio Declarado';
+    } else if (backendLocationTypeId == LocationTypes.REMOTE_ALTERNATIVE) {
+      return 'Domicilio Alternativo';
+    } else {
+      // Primero intentar con nombres hardcodeados para IDs del backend más comunes
+      switch (backendLocationTypeId) {
+        case 101:
+          return 'Oficina ABSTI';
+        case 102:
+          return 'Oficina de Swiss Medical Group';
+        case 103:
+          return 'Oficina Galicia';
+        case 104:
+          return 'Oficina Allianz';
+      }
+      
+      // Para tipos de catálogo, mapear al ID del catálogo
+      final catalogId = _mapLocationTypeToCatalogId(backendLocationTypeId);
+      if (catalogLocations != null) {
+        try {
+          final catalogLocation = catalogLocations!.firstWhere(
+            (cat) => cat.id == catalogId,
           );
           return catalogLocation.name;
         } catch (e) {
           // Si no se encuentra en el catálogo
         }
       }
-      return 'Ubicación $locationId';
+      return 'Ubicación Desconocida (Type: $backendLocationTypeId)';
     }
   }
 
@@ -1430,11 +1280,11 @@ class WorkStatusPanel extends StatelessWidget {
       
       // Parsing del timestamp
       if (timeValue is String) {
-        // Si contiene 'T', es formato ISO
+        // Si contiene 'T', es formato ISO (UTC)
         if (timeValue.contains('T')) {
-          dateTime = DateTime.parse(timeValue);
+          dateTime = DateTime.parse(timeValue).toLocal(); // ⭐ CONVERTIR A HORA LOCAL
         } else {
-          // Asumir que es solo hora en formato HH:mm:ss
+          // Asumir que es solo hora en formato HH:mm:ss (ya está en hora local)
           final today = DateTime.now();
           final timeParts = timeValue.split(':');
           if (timeParts.length >= 2) {
@@ -1883,24 +1733,34 @@ class WorkStatusPanel extends StatelessWidget {
 
             // Información de ubicación actual (cuando está trabajando)
             if (isWorking) ...[
-              Row(
-                children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: Color(0xFFE67D21),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _buildWorkingLocationMessage(context),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      color: Colors.blue.shade600,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _buildWorkingLocationMessage(context),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                          height: 1.2, // Menos espacio entre líneas normales
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
             ],
@@ -1952,13 +1812,8 @@ class WorkStatusPanel extends StatelessWidget {
                             onStopWork();
                           }
                         : () {
-                            // Validar jornada completa antes de iniciar
-                            final validation = _validateWorkday(context);
-                            if (validation.isValid) {
-                              onStartWork();
-                            } else {
-                              _showWorkdayValidationDialog(context, validation);
-                            }
+                            // Iniciar directamente - el nuevo diálogo maneja las advertencias
+                            onStartWork();
                           }),
               isLoading: isProcessing,
               type: dayCompleted ? ButtonType.secondary : ButtonType.primary,

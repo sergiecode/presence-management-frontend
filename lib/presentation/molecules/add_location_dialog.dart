@@ -111,6 +111,36 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
   String? _alternativeFloor;
   String? _alternativeApartment;
 
+  /// Mapea el ID del catálogo al location_type que espera el backend
+  int _mapCatalogIdToLocationType(int catalogId) {
+    switch (catalogId) {
+      case 1: return 101; // Oficina ABSTI
+      case 2: return 102; // Swiss Medical
+      case 3: return 104; // Allianz (103 era Galicia)
+      case 4: return 103; // Galicia (104 era Allianz)
+      default: return catalogId + 100; // Fallback genérico
+    }
+  }
+
+  /// Convierte el ID de la UI al location_type que espera el backend
+  int _getLocationTypeForBackend(int uiId) {
+    if (uiId == LocationTypes.REMOTE_DECLARED || uiId == LocationTypes.REMOTE_ALTERNATIVE) {
+      return uiId; // Los tipos básicos van directo
+    }
+    
+    // Para ubicaciones del catálogo, buscar el catalog ID y mapearlo
+    if (uiId >= 1000 && widget.catalogLocations != null) {
+      final catalogIndex = uiId - 1000;
+      final activeLocations = widget.catalogLocations!.where((loc) => loc.isActive).toList();
+      if (catalogIndex < activeLocations.length) {
+        final catalogLocation = activeLocations[catalogIndex];
+        return _mapCatalogIdToLocationType(catalogLocation.id);
+      }
+    }
+    
+    return uiId; // Fallback
+  }
+
   /// Construye la lista de opciones de ubicación disponibles
   List<LocationOption> _buildAvailableOptions() {
     List<LocationOption> options = [];
@@ -133,16 +163,18 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       source: LocationSource.alternativeAddress,
     ));
 
-    // Ubicaciones del catálogo (CAMBIO: mostrar todas las activas, sin excluir)
+    // Ubicaciones del catálogo - usar IDs únicos empezando desde 1000
     if (widget.catalogLocations != null) {
+      int uiIdCounter = 1000;
       for (final catalogLocation in widget.catalogLocations!) {
         if (catalogLocation.isActive) {
           options.add(LocationOption(
-            id: catalogLocation.id,
+            id: uiIdCounter++, // ID único: 1000, 1001, 1002, 1003
             name: catalogLocation.name,
             description: catalogLocation.description ?? catalogLocation.address,
             source: LocationSource.catalog,
             address: catalogLocation.address,
+            catalogId: catalogLocation.id, // Guardamos el ID original del catálogo
           ));
         }
       }
@@ -170,12 +202,15 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
         return detail;
       
       default:
-        // Ubicación del catálogo
-        final catalogLocation = widget.catalogLocations?.firstWhere(
-          (cat) => cat.id == _selectedLocationId!,
-          orElse: () => CatalogLocation(id: _selectedLocationId!, name: 'Ubicación', isActive: true),
-        );
-        return catalogLocation?.name ?? 'Ubicación del catálogo';
+        // Ubicación del catálogo - buscar por UI ID
+        if (_selectedLocationId! >= 1000 && widget.catalogLocations != null) {
+          final catalogIndex = _selectedLocationId! - 1000;
+          final activeLocations = widget.catalogLocations!.where((loc) => loc.isActive).toList();
+          if (catalogIndex < activeLocations.length) {
+            return activeLocations[catalogIndex].name;
+          }
+        }
+        return 'Ubicación del catálogo';
     }
   }
 
@@ -423,32 +458,26 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
             const SizedBox(height: 12),
             ...analysis.suggestions.map((suggestion) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                onTap: () => _applySuggestion(suggestion),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.lightbulb_outline, 
-                        color: Colors.blue.shade600, 
-                        size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          suggestion.description,
-                          style: TextStyle(color: Colors.blue.shade700),
-                        ),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lightbulb_outline, 
+                      color: Colors.blue.shade600, 
+                      size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        suggestion.description,
+                        style: TextStyle(color: Colors.blue.shade700),
                       ),
-                      Icon(Icons.arrow_forward_ios, 
-                        color: Colors.blue.shade400, 
-                        size: 16),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             )).toList(),
@@ -464,86 +493,48 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
     );
   }
 
-  void _applySuggestion(ScheduleSuggestion suggestion) {
-    Navigator.of(context).pop(); // Cerrar el diálogo de sugerencias
-    
-    // Mostrar diálogo de confirmación con los cambios propuestos
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Aplicar Sugerencia'),
-        content: Text('¿Deseas aplicar esta sugerencia?\n\n${suggestion.description}'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Cerrar confirmación
-              _implementSuggestion(suggestion);
-            },
-            child: const Text('Aplicar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _implementSuggestion(ScheduleSuggestion suggestion) {
-    switch (suggestion.type) {
-      case SuggestionType.modifyExisting:
-        // Aquí se implementaría la lógica para modificar la ubicación existente
-        // Por ahora, simplemente cerraremos el diálogo y mostraremos un mensaje
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sugerencia aplicada: ${suggestion.description}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        break;
-      case SuggestionType.rescheduleNew:
-        setState(() {
-          _startTime = suggestion.newStartTime!;
-          _endTime = suggestion.newEndTime!;
-        });
-        break;
-      case SuggestionType.splitExisting:
-        // Implementar lógica para dividir ubicación
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Función en desarrollo: ${suggestion.description}'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        break;
-    }
-  }
-
   /// Obtiene el nombre de una ubicación por su ID
   String _getLocationNameById(int locationId) {
-    // Buscar en ubicaciones del catálogo
+    print('DEBUG: _getLocationNameById called with locationId: $locationId');
+    
+    // Primero verificar si es un tipo de ubicación especial (1-4)
+    switch (locationId) {
+      case LocationTypes.REMOTE_DECLARED:
+        print('DEBUG: Mapped to Domicilio Declarado');
+        return 'Domicilio Declarado';
+      case LocationTypes.REMOTE_ALTERNATIVE:
+        print('DEBUG: Mapped to Domicilio Alternativo');
+        return 'Domicilio Alternativo';
+      case LocationTypes.CLIENT:
+        print('DEBUG: Mapped to Cliente');
+        return 'Cliente';
+      case LocationTypes.OFFICE:
+        print('DEBUG: Mapped to Oficina');
+        return 'Oficina';
+    }
+    
+    // Si no es un tipo especial, buscar en ubicaciones del catálogo
     if (widget.catalogLocations != null) {
+      print('DEBUG: Searching in catalogLocations, count: ${widget.catalogLocations!.length}');
+      for (var loc in widget.catalogLocations!) {
+        print('  - Catalog location: id=${loc.id}, name="${loc.name}"');
+      }
+      
       final catalogLocation = widget.catalogLocations!.firstWhere(
         (loc) => loc.id == locationId,
         orElse: () => CatalogLocation(id: -1, name: '', description: '', isActive: false),
       );
       if (catalogLocation.id != -1) {
+        print('DEBUG: Found in catalog: ${catalogLocation.name}');
         return catalogLocation.name;
       }
+    } else {
+      print('DEBUG: catalogLocations is null');
     }
     
-    // Ubicaciones especiales
-    switch (locationId) {
-      case LocationTypes.REMOTE_DECLARED:
-        return 'Domicilio Declarado';
-      case LocationTypes.REMOTE_ALTERNATIVE:
-        return 'Domicilio Alternativo';
-      default:
-        return 'Ubicación #$locationId';
-    }
+    // Fallback para IDs desconocidos
+    print('DEBUG: Using fallback name for locationId: $locationId');
+    return 'Ubicación #$locationId';
   }
 
   /// Muestra un error al usuario
@@ -559,7 +550,7 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
   /// Crea la WorkLocation con los datos ingresados
   WorkLocation _createWorkLocation() {
     return WorkLocation(
-      locationTypeId: _selectedLocationId!,
+      locationTypeId: _getLocationTypeForBackend(_selectedLocationId!), // Usar el mapeo correcto para backend
       locationDetail: _buildLocationDetail(),
       startTime: _startTime,
       endTime: _endTime,

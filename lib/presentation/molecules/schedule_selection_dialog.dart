@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import '../atoms/atoms.dart';
 
-/// **MOLÉCULA: Diálogo para selección de horarios**
+/// **MOLÉCULA: Diálogo para confirmación y selección de horarios**
 ///
-/// Diálogo que permite al usuario ver y modificar sus horarios habituales
-/// antes de iniciar la jornada laboral.
+/// Diálogo que permite al usuario ver sus horarios calculados inteligentemente
+/// y opcionalmente modificarlos antes de iniciar la jornada laboral.
 ///
 /// **Características:**
-/// - Muestra horarios habituales del usuario (desde API /users/me)
-/// - Permite modificar horarios si es necesario
-/// - Convierte horarios a formato UTC para envío al backend
+/// - Muestra horarios inteligentes (habituales vs actuales según hora del día)
+/// - Permite iniciar jornada con horarios mostrados
+/// - Opción para modificar horarios manualmente
+/// - Validaciones de duración mínima y coherencia de horarios
 class ScheduleSelectionDialog extends StatefulWidget {
   /// Horario habitual de inicio del usuario
   final TimeOfDay defaultStartTime;
   
   /// Horario habitual de fin del usuario
   final TimeOfDay defaultEndTime;
+  
+  /// Horario habitual original de inicio (para comparación)
+  final TimeOfDay habitualStartTime;
+  
+  /// Horario habitual original de fin (para comparación)
+  final TimeOfDay habitualEndTime;
   
   /// Nombre de la ubicación seleccionada
   final String locationName;
@@ -24,6 +31,8 @@ class ScheduleSelectionDialog extends StatefulWidget {
     super.key,
     required this.defaultStartTime,
     required this.defaultEndTime,
+    required this.habitualStartTime,
+    required this.habitualEndTime,
     required this.locationName,
   });
 
@@ -32,6 +41,8 @@ class ScheduleSelectionDialog extends StatefulWidget {
     required BuildContext context,
     required TimeOfDay defaultStartTime,
     required TimeOfDay defaultEndTime,
+    required TimeOfDay habitualStartTime,
+    required TimeOfDay habitualEndTime,
     required String locationName,
   }) {
     return showDialog<Map<String, TimeOfDay>>(
@@ -40,6 +51,8 @@ class ScheduleSelectionDialog extends StatefulWidget {
       builder: (context) => ScheduleSelectionDialog(
         defaultStartTime: defaultStartTime,
         defaultEndTime: defaultEndTime,
+        habitualStartTime: habitualStartTime,
+        habitualEndTime: habitualEndTime,
         locationName: locationName,
       ),
     );
@@ -60,25 +73,95 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
     _endTime = widget.defaultEndTime;
   }
 
-  /// Valida que los horarios sean correctos
-  bool _validateSchedule() {
-    final startMinutes = _startTime.hour * 60 + _startTime.minute;
-    final endMinutes = _endTime.hour * 60 + _endTime.minute;
-    
-    if (endMinutes <= startMinutes) {
-      _showError('La hora de fin debe ser posterior a la de inicio');
-      return false;
-    }
-    
-    return true;
+  /// Calcula la duración en minutos entre dos horarios
+  int _calculateDurationInMinutes(TimeOfDay start, TimeOfDay end) {
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+    return endMinutes - startMinutes;
   }
 
-  /// Muestra un error al usuario
+  /// Verifica si la duración actual es menor a la habitual
+  bool _isWorkingFewerHours() {
+    final currentDuration = _calculateDurationInMinutes(_startTime, _endTime);
+    final habitualDuration = _calculateDurationInMinutes(widget.habitualStartTime, widget.habitualEndTime);
+    return currentDuration < habitualDuration;
+  }
+
+  /// Muestra diálogos para seleccionar nuevos horarios
+  Future<void> _showTimeSelectionDialog() async {
+    final startTime = await _selectTime(
+      context: context,
+      initialTime: _startTime,
+      title: 'Selecciona hora de inicio',
+    );
+    
+    if (startTime != null && mounted) {
+      final endTime = await _selectTime(
+        context: context,
+        initialTime: _endTime,
+        title: 'Selecciona hora de fin',
+      );
+      
+      if (endTime != null && mounted) {
+        // Validar que el horario de fin sea después del de inicio
+        final startMinutes = startTime.hour * 60 + startTime.minute;
+        final endMinutes = endTime.hour * 60 + endTime.minute;
+        
+        if (endMinutes <= startMinutes) {
+          _showError('La hora de fin debe ser posterior a la hora de inicio');
+          return;
+        }
+        
+        // Validar duración mínima (por ejemplo, al menos 1 hora)
+        final durationHours = (endMinutes - startMinutes) / 60;
+        if (durationHours < 1) {
+          _showError('La jornada debe tener una duración mínima de 1 hora');
+          return;
+        }
+        
+        setState(() {
+          _startTime = startTime;
+          _endTime = endTime;
+        });
+      }
+    }
+  }
+
+  /// Muestra selector de tiempo
+  Future<TimeOfDay?> _selectTime({
+    required BuildContext context,
+    required TimeOfDay initialTime,
+    required String title,
+  }) async {
+    return showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      helpText: title,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: Colors.white,
+              hourMinuteShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+  }
+
+  /// Muestra mensaje de error
   void _showError(String message) {
+    if (!mounted) return;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red.shade600,
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -107,24 +190,88 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Información de ubicación
+            // Información de ubicación y horarios seleccionados
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade300),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.location_on, color: Colors.blue.shade600, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
+                  // Título principal
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Información de tu jornada',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Ubicación (en su propia línea)
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, color: Colors.orange.shade600, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Trabajarás desde:',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 26),
                     child: Text(
-                      'Trabajarás desde: ${widget.locationName}',
+                      widget.locationName,
                       style: TextStyle(
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Horarios (en su propia línea)
+                  Row(
+                    children: [
+                      Icon(Icons.schedule, color: Colors.orange.shade600, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Horarios:',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 26),
+                    child: Text(
+                      '${_startTime.format(context)} - ${_endTime.format(context)}',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -134,153 +281,91 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
             
             const SizedBox(height: 20),
             
-            const Text(
-              'Horarios habituales:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Selector de hora de inicio
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Hora de inicio:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 8),
-                      InkWell(
-                        onTap: () async {
-                          final TimeOfDay? picked = await showTimePicker(
-                            context: context,
-                            initialTime: _startTime,
-                          );
-                          if (picked != null) {
-                            setState(() {
-                              _startTime = picked;
-                            });
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.access_time, size: 18, color: Colors.grey.shade600),
-                              const SizedBox(width: 8),
-                              Text(
-                                _startTime.format(context),
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            // Advertencia si está trabajando menos horas
+            if (_isWorkingFewerHours()) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade300),
                 ),
-                
-                const SizedBox(width: 16),
-                
-                // Selector de hora de fin
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Hora de fin:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 8),
-                      InkWell(
-                        onTap: () async {
-                          final TimeOfDay? picked = await showTimePicker(
-                            context: context,
-                            initialTime: _endTime,
-                          );
-                          if (picked != null) {
-                            setState(() {
-                              _endTime = picked;
-                            });
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.orange.shade600, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '⚠️ Advertencia: Menos horas que lo habitual',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.access_time, size: 18, color: Colors.grey.shade600),
-                              const SizedBox(width: 8),
-                              Text(
-                                _endTime.format(context),
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'Trabajarás menos horas que tu horario habitual. ¿Deseas continuar?',
+                            style: TextStyle(
+                              color: Colors.orange.shade600,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Información adicional
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.grey.shade600, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Estos son tus horarios habituales. Puedes modificarlos si necesitas trabajar en horarios diferentes hoy.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+            ],
+            
+            const SizedBox(height: 16),
+            
+
           ],
         ),
       ),
       actions: [
-        Row(
+        Column(
           children: [
-            Expanded(
-              child: CustomButton(
-                text: 'Cancelar',
-                onPressed: () => Navigator.of(context).pop(),
-                type: ButtonType.secondary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+            // Botón principal: Iniciar Jornada
+            SizedBox(
+              width: double.maxFinite,
               child: CustomButton(
                 text: 'Iniciar Jornada',
                 onPressed: () {
-                  if (_validateSchedule()) {
-                    Navigator.of(context).pop({
-                      'startTime': _startTime,
-                      'endTime': _endTime,
-                    });
-                  }
+                  Navigator.of(context).pop({
+                    'startTime': _startTime,
+                    'endTime': _endTime,
+                  });
                 },
                 type: ButtonType.primary,
               ),
+            ),
+            const SizedBox(height: 8),
+            // Segunda fila: Modificar Horarios y Cancelar
+            Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: 'Modificar Horarios',
+                    onPressed: _showTimeSelectionDialog,
+                    type: ButtonType.secondary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomButton(
+                    text: 'Cancelar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    type: ButtonType.secondary,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
