@@ -1,11 +1,11 @@
 {
-    "name": "presence_management_frontend",
-    "short_name": "presence_management_frontend",
+    "name": "ABSistencia - Control de Presencia",
+    "short_name": "ABSistencia",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#1976D2",
-    "description": "A new Flutter project.",
+    "description": "Aplicación profesional para el control y gestión de presencia laboral. Sistema integral de marcación y seguimiento de asistencia.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

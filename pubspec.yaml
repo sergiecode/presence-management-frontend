@@ -1,5 +1,5 @@
 name: absistencia
-description: "Aplicación de control de presencia ABSistencia"
+description: "ABSistencia - Aplicación profesional para el control y gestión de presencia laboral. Sistema integral de marcación y seguimiento de asistencia con tecnología biométrica y notificaciones inteligentes."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
