@@ -85,9 +85,6 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
     
     if (_selectedLocationId == LocationTypes.REMOTE_DECLARED) {
       locationDetail = widget.userDeclaredAddress ?? '';
-      print('🏠 DOMICILIO DECLARADO - Enviando al backend:');
-      print('🏠   userDeclaredAddress recibido: "${widget.userDeclaredAddress}"');
-      print('🏠   locationDetail final: "$locationDetail"');
     } else if (_selectedLocationId == LocationTypes.REMOTE_ALTERNATIVE) {
       final addressParts = <String>[
         _alternativeAddress.trim(),

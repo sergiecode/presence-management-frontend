@@ -167,17 +167,6 @@ class DebugLogger {
     
     print('$levelIcon [$timestamp]$tag ${entry.message}');
     
-    if (entry.data != null) {
-      print('   📊 Data: ${entry.data}');
-    }
-    
-    if (entry.error != null) {
-      print('   ❌ Error: ${entry.error}');
-    }
-    
-    if (entry.stackTrace != null) {
-      print('   📍 Stack Trace: ${entry.stackTrace}');
-    }
   }
 
   /// Obtener icono para el nivel de log

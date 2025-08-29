@@ -9,12 +9,9 @@
 /// ```dart
 /// try {
 ///   final locations = await CatalogService.getLocations(token);
-///   print('Ubicaciones obtenidas: ${locations.length}');
 ///   for (final location in locations) {
-///     print('- ${location.name}: ${location.description}');
 ///   }
 /// } catch (e) {
-///   print('Error obteniendo ubicaciones: $e');
 /// }
 /// ```
 ///
@@ -85,15 +82,10 @@ class CatalogService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<CatalogLocation>> getLocations(String token) async {
     try {
-      print('CatalogService: === INICIO OBTENER UBICACIONES ===');
-      print('CatalogService: Token length: ${token.length}');
-      print('CatalogService: Token starts with: ${token.substring(0, 10)}...');
+     
 
       final url = '$baseUrl/api/catalog/locations';
-      print('CatalogService: URL completa: $url');
-      print('CatalogService: BaseUrl: $baseUrl');
-
-      print('CatalogService: Enviando request...');
+     
       final response = await http
           .get(
             Uri.parse(url),
@@ -104,18 +96,10 @@ class CatalogService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('CatalogService: Response recibida!');
-      print('CatalogService: Status Code: ${response.statusCode}');
-      print('CatalogService: Headers: ${response.headers}');
-      print('CatalogService: Body length: ${response.body.length}');
-      print('CatalogService: Body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
-
       if (response.statusCode == 200) {
         final responseBody = response.body;
-        print('CatalogService: Response body type: ${responseBody.runtimeType}');
         
         final dynamic responseData = json.decode(responseBody);
-        print('CatalogService: Decoded data type: ${responseData.runtimeType}');
         
         // El endpoint puede devolver diferentes formatos
         List<dynamic> locationsList;
@@ -123,15 +107,12 @@ class CatalogService {
         if (responseData is List<dynamic>) {
           // Si la respuesta es directamente un array
           locationsList = responseData;
-          print('CatalogService: Response is direct array with ${locationsList.length} items');
         } else if (responseData is Map<String, dynamic> && responseData.containsKey('data')) {
           // Si la respuesta tiene formato { data: [...] }
           locationsList = responseData['data'] as List<dynamic>;
-          print('CatalogService: Response is object with data property containing ${locationsList.length} items');
         } else {
           // Si la respuesta es un solo objeto, convertir a array
           locationsList = [responseData];
-          print('CatalogService: Response is single object, converted to array');
         }
 
         final List<CatalogLocation> locations = locationsList
@@ -139,7 +120,6 @@ class CatalogService {
             .where((location) => location.isActive) // Solo ubicaciones activas
             .toList();
 
-        print('CatalogService: ${locations.length} ubicaciones obtenidas');
         return locations;
       } else {
         // Manejar errores de la API
@@ -147,17 +127,12 @@ class CatalogService {
         throw Exception(errorMessage);
       }
     } on SocketException catch (e) {
-      print('CatalogService: ERROR - Sin conexión a internet: $e');
       throw Exception('Sin conexión a internet: ${e.message}');
     } on TimeoutException catch (e) {
-      print('CatalogService: ERROR - Tiempo agotado: $e');
       throw Exception('Tiempo de espera agotado: ${e.message}');
     } on FormatException catch (e) {
-      print('CatalogService: ERROR - Formato inválido: $e');
       throw Exception('Error de formato JSON: ${e.message}');
     } catch (e) {
-      print('CatalogService: ERROR - General: $e');
-      print('CatalogService: ERROR - Type: ${e.runtimeType}');
       throw Exception('Error obteniendo ubicaciones: $e');
     }
   }

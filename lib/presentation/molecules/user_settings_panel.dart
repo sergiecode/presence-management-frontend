@@ -187,14 +187,12 @@ class UserSettingsPanel extends StatelessWidget {
       final hasPermissions = await notificationService.hasPermissions();
       if (!hasPermissions) {
         // Aquí podrías mostrar un diálogo pidiendo permisos
-        print('UserSettingsPanel: Sin permisos de notificaciones');
         return;
       }
 
       // Enviar notificación de prueba
       await notificationService.showTestNotification(userName: 'Usuario');
     } catch (e) {
-      print('UserSettingsPanel: Error enviando notificación de prueba: $e');
     }
   }
 

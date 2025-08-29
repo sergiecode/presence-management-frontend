@@ -217,64 +217,25 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Ubicación (en su propia línea)
+                  // Mostrar solo locationName, que ya incluye el horario formateado
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(Icons.location_on, color: Colors.orange.shade600, size: 18),
                       const SizedBox(width: 8),
-                      Text(
-                        'Trabajarás desde:',
-                        style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                      Expanded(
+                        child: Text(
+                          widget.locationName,
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 26),
-                    child: Text(
-                      widget.locationName,
-                      style: TextStyle(
-                        color: Colors.orange.shade800,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Horarios (en su propia línea)
-                  Row(
-                    children: [
-                      Icon(Icons.schedule, color: Colors.orange.shade600, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Horarios:',
-                        style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 26),
-                    child: Text(
-                      '${_startTime.format(context)} - ${_endTime.format(context)}',
-                      style: TextStyle(
-                        color: Colors.orange.shade800,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+                  // ... Horarios removidos como sección separada ...
                 ],
               ),
             ),
@@ -323,7 +284,6 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
               const SizedBox(height: 16),
             ],
             
-            const SizedBox(height: 16),
             
 
           ],
@@ -347,25 +307,14 @@ class _ScheduleSelectionDialogState extends State<ScheduleSelectionDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            // Segunda fila: Modificar Horarios y Cancelar
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: 'Modificar Horarios',
-                    onPressed: _showTimeSelectionDialog,
-                    type: ButtonType.secondary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomButton(
-                    text: 'Cancelar',
-                    onPressed: () => Navigator.of(context).pop(),
-                    type: ButtonType.secondary,
-                  ),
-                ),
-              ],
+            // Botón Cancelar
+            SizedBox(
+              width: double.maxFinite,
+              child: CustomButton(
+                text: 'Cancelar',
+                onPressed: () => Navigator.of(context).pop(),
+                type: ButtonType.secondary,
+              ),
             ),
           ],
         ),

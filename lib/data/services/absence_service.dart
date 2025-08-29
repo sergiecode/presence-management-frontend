@@ -35,7 +35,6 @@ class AbsenceService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<Map<String, dynamic>>> getAbsences(String token) async {
     try {
-      print('AbsenceService: Obteniendo ausencias del usuario...');
 
       // Realizar petición GET para obtener todas las ausencias
       final response = await http
@@ -48,12 +47,10 @@ class AbsenceService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('AbsenceService: Respuesta: ${response.statusCode}');
 
       // Verificar si la respuesta es exitosa
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('AbsenceService: ${data.length} ausencias obtenidas');
 
         // Convertir la lista de datos dinámicos a lista de mapas
         return data
@@ -68,7 +65,6 @@ class AbsenceService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('AbsenceService: Error al obtener ausencias: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -100,9 +96,6 @@ class AbsenceService {
     Map<String, dynamic> absenceData,
   ) async {
     try {
-      print('AbsenceService: Creando ausencia...');
-      print('AbsenceService: Datos: $absenceData');
-
       // Validar datos antes de enviar
       _validateAbsenceData(absenceData);
 
@@ -118,11 +111,9 @@ class AbsenceService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('AbsenceService: Respuesta creación: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('AbsenceService: Ausencia creada exitosamente');
         return _parseAbsenceData(data);
       } else {
         // Manejar errores de creación
@@ -133,7 +124,6 @@ class AbsenceService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('AbsenceService: Error al crear ausencia: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -167,8 +157,6 @@ class AbsenceService {
     Map<String, dynamic> absenceData,
   ) async {
     try {
-      print('AbsenceService: Actualizando ausencia ID: $absenceId');
-      print('AbsenceService: Datos: $absenceData');
 
       // Validar datos antes de enviar
       _validateAbsenceData(absenceData);
@@ -185,11 +173,9 @@ class AbsenceService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('AbsenceService: Respuesta actualización: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('AbsenceService: Ausencia actualizada exitosamente');
         return _parseAbsenceData(data);
       } else {
         // Manejar errores de actualización
@@ -200,7 +186,6 @@ class AbsenceService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('AbsenceService: Error al actualizar ausencia: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -229,7 +214,6 @@ class AbsenceService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<bool> deleteAbsence(String token, int absenceId) async {
     try {
-      print('AbsenceService: Eliminando ausencia ID: $absenceId');
 
       // Realizar petición DELETE para eliminar la ausencia
       final response = await http
@@ -242,10 +226,8 @@ class AbsenceService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('AbsenceService: Respuesta eliminación: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        print('AbsenceService: Ausencia eliminada exitosamente');
         return true;
       } else {
         // Manejar errores de eliminación
@@ -256,7 +238,6 @@ class AbsenceService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('AbsenceService: Error al eliminar ausencia: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -477,8 +458,6 @@ class AbsenceService {
     String filePath,
   ) async {
     try {
-      print('AbsenceService: Subiendo documento para ausencia ID: $absenceId');
-      print('AbsenceService: Archivo: $filePath');
 
       // Validar el archivo antes de subirlo
       _validateDocumentFile(filePath);
@@ -502,7 +481,6 @@ class AbsenceService {
       );
       request.files.add(multipartFile);
 
-      print('AbsenceService: Enviando documento...');
 
       // Enviar la petición
       final streamedResponse = await request.send().timeout(
@@ -511,12 +489,9 @@ class AbsenceService {
 
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('AbsenceService: Respuesta subida: ${response.statusCode}');
-      print('AbsenceService: Cuerpo de respuesta: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('AbsenceService: Documento subido exitosamente');
         return data;
       } else {
         // Manejar errores de subida
@@ -524,11 +499,9 @@ class AbsenceService {
           response.statusCode,
           response.body,
         );
-        print('AbsenceService: Error al subir documento: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('AbsenceService: Error al subir documento: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {

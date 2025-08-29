@@ -116,8 +116,8 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
     switch (catalogId) {
       case 1: return 101; // Oficina ABSTI
       case 2: return 102; // Swiss Medical
-      case 3: return 104; // Allianz (103 era Galicia)
-      case 4: return 103; // Galicia (104 era Allianz)
+      case 3: return 103; // Allianz
+      case 4: return 104; // Galicia
       default: return catalogId + 100; // Fallback genérico
     }
   }
@@ -287,13 +287,8 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
     final startMinutes = _startTime.hour * 60 + _startTime.minute;
     final endMinutes = _endTime.hour * 60 + _endTime.minute;
 
-    print('DEBUG AddLocationDialog: Analizando conflictos...');
-    print('  - Nueva ubicación: ${_startTime.format(context)} - ${_endTime.format(context)} ($startMinutes - $endMinutes minutos)');
-    print('  - Ubicaciones existentes para validar: ${widget.existingLocations.length}');
-
     for (int i = 0; i < widget.existingLocations.length; i++) {
       final existingLocation = widget.existingLocations[i];
-      print('  - Existente $i: ID ${existingLocation.locationTypeId}, ${existingLocation.startTime.format(context)} - ${existingLocation.endTime?.format(context) ?? "Sin fin"}');
       
       final existingStartMinutes = existingLocation.startTime.hour * 60 + existingLocation.startTime.minute;
       final existingEndMinutes = existingLocation.endTime != null 
@@ -303,17 +298,11 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       // Si la ubicación existente no tiene hora de fin, consideramos que va hasta el final del día
       final effectiveEndMinutes = existingEndMinutes ?? (23 * 60 + 59);
       
-      print('    Minutos existentes: $existingStartMinutes - $effectiveEndMinutes');
       
       // Verificar solapamiento
       bool hasOverlap = (startMinutes < effectiveEndMinutes) && (endMinutes > existingStartMinutes);
       
-      print('    ¿Hay solapamiento? $hasOverlap');
-      print('    Lógica: ($startMinutes < $effectiveEndMinutes) && ($endMinutes > $existingStartMinutes)');
-      print('           ${startMinutes < effectiveEndMinutes} && ${endMinutes > existingStartMinutes}');
-      
       if (hasOverlap) {
-        print('  *** CONFLICTO DETECTADO ***');
         return ScheduleConflictAnalysis(
           hasConflict: true,
           conflictingLocation: existingLocation,
@@ -324,13 +313,11 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       }
     }
     
-    print('  - No se detectaron conflictos');
     return ScheduleConflictAnalysis(hasConflict: false);
   }
 
   /// Genera sugerencias para resolver conflictos de horarios
   List<ScheduleSuggestion> _generateScheduleSuggestions(WorkLocation conflictingLocation) {
-    print('DEBUG: Generando sugerencias para resolver conflicto...');
     
     final suggestions = <ScheduleSuggestion>[];
     final newStart = _startTime.hour * 60 + _startTime.minute;
@@ -341,9 +328,6 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
         : (17 * 60); // Default 5 PM si no hay hora de fin
 
     final conflictingLocationName = _getLocationNameById(conflictingLocation.locationTypeId);
-
-    print('  - Nueva ubicación: $newStart - $newEnd minutos');
-    print('  - Ubicación existente ($conflictingLocationName): $existingStart - $existingEnd minutos');
 
     // Sugerencia 1: Ajustar ubicación existente para que termine antes
     if (newStart < existingEnd && newStart > existingStart) {
@@ -363,7 +347,6 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       );
       
       suggestions.add(suggestion);
-      print('  + Sugerencia 1: ${suggestion.description}');
     }
 
     // Sugerencia 2: Dividir la ubicación existente
@@ -380,7 +363,6 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       );
       
       suggestions.add(suggestion);
-      print('  + Sugerencia 2: ${suggestion.description}');
     }
 
     // Sugerencia 3: Programar nueva ubicación después
@@ -398,10 +380,8 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
       );
       
       suggestions.add(suggestion);
-      print('  + Sugerencia 3: ${suggestion.description}');
     }
 
-    print('  - Total sugerencias generadas: ${suggestions.length}');
     return suggestions;
   }
 
@@ -495,45 +475,41 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
 
   /// Obtiene el nombre de una ubicación por su ID
   String _getLocationNameById(int locationId) {
-    print('DEBUG: _getLocationNameById called with locationId: $locationId');
     
     // Primero verificar si es un tipo de ubicación especial (1-4)
     switch (locationId) {
       case LocationTypes.REMOTE_DECLARED:
-        print('DEBUG: Mapped to Domicilio Declarado');
         return 'Domicilio Declarado';
       case LocationTypes.REMOTE_ALTERNATIVE:
-        print('DEBUG: Mapped to Domicilio Alternativo');
         return 'Domicilio Alternativo';
+      case 101:
+        return 'Oficina ABSTI';
+      case 102:
+        return 'Oficina de Swiss Medical Group';
+      case 103:
+        return 'Oficina Allianz';
+      case 104:
+        return 'Oficina Galicia';
       case LocationTypes.CLIENT:
-        print('DEBUG: Mapped to Cliente');
         return 'Cliente';
       case LocationTypes.OFFICE:
-        print('DEBUG: Mapped to Oficina');
         return 'Oficina';
     }
     
     // Si no es un tipo especial, buscar en ubicaciones del catálogo
     if (widget.catalogLocations != null) {
-      print('DEBUG: Searching in catalogLocations, count: ${widget.catalogLocations!.length}');
-      for (var loc in widget.catalogLocations!) {
-        print('  - Catalog location: id=${loc.id}, name="${loc.name}"');
-      }
       
       final catalogLocation = widget.catalogLocations!.firstWhere(
         (loc) => loc.id == locationId,
         orElse: () => CatalogLocation(id: -1, name: '', description: '', isActive: false),
       );
       if (catalogLocation.id != -1) {
-        print('DEBUG: Found in catalog: ${catalogLocation.name}');
         return catalogLocation.name;
       }
     } else {
-      print('DEBUG: catalogLocations is null');
     }
     
     // Fallback para IDs desconocidos
-    print('DEBUG: Using fallback name for locationId: $locationId');
     return 'Ubicación #$locationId';
   }
 

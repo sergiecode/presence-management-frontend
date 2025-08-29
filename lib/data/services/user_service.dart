@@ -28,28 +28,13 @@ class UserService {
   /// Retorna:
   /// - [Map<String, dynamic>]: Datos del usuario normalizados
   static Map<String, dynamic> _parseUserData(Map<String, dynamic> data) {
-    // Debug: mostrar estructura completa del usuario
-    print('UserService: === DATOS COMPLETOS DEL USUARIO ===');
-    print('UserService: ID: ${data['id']}');
-    print('UserService: Nombre: ${data['name']} ${data['surname']}');
-    print('UserService: Email: ${data['email']}');
+
     
     // Debug específico para el campo location
     if (data['location'] != null) {
-      print('UserService: 🏠 LOCATION encontrado:');
       final location = data['location'] as Map<String, dynamic>;
-      print('UserService: 🏠   calle: "${location['calle'] ?? ''}"');
-      print('UserService: 🏠   numero: "${location['numero'] ?? ''}"');
-      print('UserService: 🏠   piso: "${location['piso'] ?? ''}"');
-      print('UserService: 🏠   ciudad: "${location['ciudad'] ?? ''}"');
-      print('UserService: 🏠   provincia: "${location['provincia'] ?? ''}"');
-      print('UserService: 🏠   codigo_postal: "${location['codigo_postal'] ?? ''}"');
-      print('UserService: 🏠   pais: "${location['pais'] ?? ''}"');
-      print('UserService: 🏠   tipo: ${location['tipo'] ?? ''}');
     } else {
-      print('UserService: ❌ NO se encontró campo location en la respuesta');
     }
-    print('UserService: === FIN DATOS USUARIO ===');
 
     return {
       'id': data['id'] ?? 0,
@@ -99,7 +84,6 @@ class UserService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<Map<String, dynamic>?> getCurrentUser(String token) async {
     try {
-      print('UserService: Obteniendo datos del usuario...');
 
       // Realizar petición GET para obtener datos del usuario actual
       final response = await http
@@ -112,12 +96,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta del servidor: ${response.statusCode}');
 
       // Verificar si la respuesta es exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Datos recibidos exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores usando el método helper
@@ -125,11 +107,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al obtener usuario: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -154,11 +134,9 @@ class UserService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<Map<String, dynamic>?> getUserDeclaredAddress(String token) async {
     try {
-      print('UserService: Obteniendo dirección del domicilio declarado...');
 
       final userData = await getCurrentUser(token);
       if (userData == null || userData['location'] == null) {
-        print('UserService: No se encontró dirección declarada');
         return null;
       }
 
@@ -177,15 +155,12 @@ class UserService {
 
       // Verificar que al menos tenga calle y numero
       if (declaredAddress['calle']!.isEmpty && declaredAddress['numero']!.isEmpty) {
-        print('UserService: Dirección declarada incompleta');
         return null;
       }
 
-      print('UserService: Dirección declarada obtenida exitosamente');
       return declaredAddress;
 
     } catch (e) {
-      print('UserService: Error al obtener dirección declarada: $e');
       rethrow;
     }
   }
@@ -198,8 +173,7 @@ class UserService {
   /// Retorna:
   /// - [String]: Dirección formateada como string
   static String formatDeclaredAddress(Map<String, dynamic> addressData) {
-    print('UserService: === FORMATEANDO DIRECCIÓN ===');
-    print('UserService: Datos recibidos: $addressData');
+
     
     final parts = <String>[];
     
@@ -210,14 +184,12 @@ class UserService {
         calleNumero += ' ${addressData['numero'].toString().trim()}';
       }
       parts.add(calleNumero);
-      print('UserService: ✅ Agregado calle y número: "$calleNumero"');
     }
     
     // Piso (si existe)
     if (addressData['piso']?.isNotEmpty ?? false) {
       final piso = addressData['piso'].toString().trim();
       parts.add('Piso $piso');
-      print('UserService: ✅ Agregado piso: "Piso $piso"');
     }
     
     // Ciudad y provincia juntas
@@ -231,14 +203,12 @@ class UserService {
     if (locationParts.isNotEmpty) {
       final cityProvince = locationParts.join(', ');
       parts.add(cityProvince);
-      print('UserService: ✅ Agregado ciudad/provincia: "$cityProvince"');
     }
     
     // Código postal
     if (addressData['codigo_postal']?.isNotEmpty ?? false) {
       final cp = 'CP ${addressData['codigo_postal'].toString().trim()}';
       parts.add(cp);
-      print('UserService: ✅ Agregado código postal: "$cp"');
     }
     
     // País (solo si es diferente de Argentina o si no hay otros datos)
@@ -246,13 +216,10 @@ class UserService {
       final pais = addressData['pais'].toString().trim();
       if (pais.toLowerCase() != 'argentina' || parts.isEmpty) {
         parts.add(pais);
-        print('UserService: ✅ Agregado país: "$pais"');
       }
     }
     
     final formatted = parts.join(', ');
-    print('UserService: 📍 DIRECCIÓN FINAL: "$formatted"');
-    print('UserService: === FIN FORMATEO ===');
     
     return formatted;
   }
@@ -273,8 +240,6 @@ class UserService {
     Map<String, dynamic> profileData,
   ) async {
     try {
-      print('UserService: Actualizando perfil del usuario actual');
-      print('UserService: Datos a enviar: $profileData');
 
       // Validar que solo contiene campos permitidos
       final allowedFields = {
@@ -305,12 +270,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta de actualización: ${response.statusCode}');
 
       // Verificar si la actualización fue exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Perfil actualizado exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores de actualización
@@ -318,11 +281,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al actualizar perfil: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -354,13 +315,10 @@ class UserService {
     Map<String, dynamic> userData,
   ) async {
     try {
-      print('UserService: Actualizando usuario con ID: $userId');
-      print('UserService: Datos a enviar: $userData');
 
       // Validar datos antes de enviar a la API
       final validationErrors = validateUserData(userData);
       if (validationErrors.isNotEmpty) {
-        print('UserService: Errores de validación: $validationErrors');
         throw Exception('Datos inválidos: ${validationErrors.values.first}');
       }
 
@@ -379,12 +337,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta de actualización: ${response.statusCode}');
 
       // Verificar si la actualización fue exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Usuario actualizado exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores de actualización
@@ -392,11 +348,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al actualizar usuario: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -424,7 +378,6 @@ class UserService {
     File imageFile,
   ) async {
     try {
-      print('UserService: Subiendo avatar para usuario $userId');
 
       // Crear request multipart
       final request = http.MultipartRequest(
@@ -448,14 +401,11 @@ class UserService {
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
         final data = json.decode(responseData);
-        print('UserService: Avatar subido exitosamente');
         return data['picture'] ?? data['avatar_url'];
       } else {
-        print('UserService: Error al subir avatar: ${response.statusCode}');
         throw Exception('Error al subir imagen de perfil');
       }
     } catch (e) {
-      print('UserService: Error al subir avatar: $e');
       if (e.toString().contains('TimeoutException')) {
         throw Exception(ErrorMessages.timeoutError);
       } else if (e.toString().contains('SocketException')) {

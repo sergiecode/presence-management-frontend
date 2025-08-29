@@ -36,9 +36,7 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<Map<String, dynamic>>> getCheckIns(String token) async {
     try {
-      print(
-        'CheckInService: Obteniendo check-ins del usuario (con paginación)...',
-      );
+ 
 
       final List<Map<String, dynamic>> allCheckIns = [];
       int currentPage = 1;
@@ -48,7 +46,6 @@ class CheckInService {
       do {
         final url =
             '$baseUrl${ApiConstants.checkinsEndpoint}?page=$currentPage';
-        print('CheckInService: Obteniendo página: $url');
 
         final response = await http
             .get(
@@ -60,7 +57,6 @@ class CheckInService {
             )
             .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-        print('CheckInService: Respuesta: ${response.statusCode}');
 
         if (response.statusCode == 200) {
           final Map<String, dynamic> pageData = json.decode(response.body);
@@ -96,12 +92,8 @@ class CheckInService {
         }
       } while (currentPage <= totalPages);
 
-      print(
-        'CheckInService: Total de ${allCheckIns.length} check-ins obtenidos de todas las páginas.',
-      );
       return allCheckIns;
     } catch (e) {
-      print('CheckInService: Error al obtener check-ins: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -129,7 +121,6 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<Map<String, dynamic>?> getTodayCheckIn(String token) async {
     try {
-      print('CheckInService: Obteniendo check-in de hoy...');
 
       // Realizar petición GET para obtener el check-in de hoy
       final response = await http
@@ -142,22 +133,18 @@ class CheckInService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('CheckInService: Respuesta today: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
         // Si hay datos, parsearlos y retornarlos
         if (data != null && data is Map<String, dynamic>) {
-          print('CheckInService: Check-in de hoy encontrado');
           return _parseCheckInData(data);
         } else {
-          print('CheckInService: No hay check-in para hoy');
           return null;
         }
       } else if (response.statusCode == 404) {
         // No hay check-in para hoy (esto es normal)
-        print('CheckInService: No hay check-in para hoy');
         return null;
       } else {
         // Manejar otros errores
@@ -168,7 +155,6 @@ class CheckInService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('CheckInService: Error al obtener check-in de hoy: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -200,10 +186,6 @@ class CheckInService {
     Map<String, dynamic> checkInData,
   ) async {
     try {
-      print('CheckInService: Realizando check-in...');
-      print('CheckInService: Datos recibidos: $checkInData');
-
-
       if (!checkInData.containsKey('time') || checkInData['time'] == null) {
         throw Exception('La hora es obligatoria para el check-in');
       }
@@ -241,48 +223,18 @@ class CheckInService {
         requestBody["late_reason"] = checkInData['late_reason'].toString();
       }
 
-      print('CheckInService: Body para enviar: $requestBody');
-      print(
-        'CheckInService: JSON string que se enviará: ${json.encode(requestBody)}',
-      );
-
-      // Debug detallado de cada campo
-      print('CheckInService: === DETALLES DEL BODY ===');
-      print(
-        'CheckInService: locations = ${requestBody['locations']} (tipo: ${requestBody['locations'].runtimeType})',
-      );
       if (requestBody['locations'] is List &&
           (requestBody['locations'] as List).isNotEmpty) {
         final firstLocation = (requestBody['locations'] as List)[0];
-        print(
-          'CheckInService: location_type = ${firstLocation['location_type']} (tipo: ${firstLocation['location_type'].runtimeType})',
-        );
-        print(
-          'CheckInService: location_detail = "${firstLocation['location_detail']}" (tipo: ${firstLocation['location_detail'].runtimeType})',
-        );
       }
-      print(
-        'CheckInService: notes = "${requestBody['notes']}" (tipo: ${requestBody['notes'].runtimeType})',
-      );
-      print(
-        'CheckInService: time = "${requestBody['time']}" (tipo: ${requestBody['time'].runtimeType})',
-      );
-      print(
-        'CheckInService: user_id = ${requestBody['user_id']} (tipo: ${requestBody['user_id'].runtimeType})',
-      );
+   
       if (requestBody.containsKey('late_reason')) {
-        print(
-          'CheckInService: late_reason = "${requestBody['late_reason']}" (tipo: ${requestBody['late_reason'].runtimeType})',
-        );
       } else {
-        print('CheckInService: late_reason = NO INCLUIDO');
       }
-      print('CheckInService: === FIN DETALLES ===');
 
       http.Response response;
 
       // Estrategia 1: Intentar con el endpoint normal
-      print('CheckInService: Estrategia 1 - Endpoint normal');
       response = await _attemptCheckIn(
         token,
         requestBody,
@@ -291,7 +243,6 @@ class CheckInService {
 
       // Estrategia 2: Si obtenemos un 307, intentar con la variante que tiene barra final
       if (response.statusCode == 307) {
-        print('CheckInService: Estrategia 2 - Endpoint con barra final');
         response = await _attemptCheckIn(
           token,
           requestBody,
@@ -301,9 +252,6 @@ class CheckInService {
 
       // Estrategia 3: Si seguimos obteniendo 307, intentar con headers alternativos
       if (response.statusCode == 307) {
-        print(
-          'CheckInService: Estrategia 3 - Headers alternativos en endpoint normal',
-        );
         response = await _attemptCheckIn(
           token,
           requestBody,
@@ -314,9 +262,6 @@ class CheckInService {
 
       // Estrategia 4: Headers alternativos con barra final
       if (response.statusCode == 307) {
-        print(
-          'CheckInService: Estrategia 4 - Headers alternativos con barra final',
-        );
         response = await _attemptCheckIn(
           token,
           requestBody,
@@ -325,26 +270,14 @@ class CheckInService {
         );
       }
 
-      print('CheckInService: Respuesta check-in: ${response.statusCode}');
-      print('CheckInService: Headers de respuesta: ${response.headers}');
-      print('CheckInService: Cuerpo de respuesta: ${response.body}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('CheckInService: Check-in realizado exitosamente');
         return _parseCheckInData(data);
       } else if (response.statusCode == 307) {
-        // Si seguimos obteniendo 307 después de todas las estrategias
-        print(
-          'CheckInService: Error 307 persistente después de todas las estrategias',
-        );
         final location = response.headers['location'];
         String errorMessage =
             'Error del servidor (307): No se pudo realizar el check-in.';
         if (location != null) {
-          print(
-            'CheckInService: Ubicación sugerida por el servidor: $location',
-          );
           errorMessage += ' El servidor sugiere usar: $location';
         }
         errorMessage += ' Contacte al administrador del sistema.';
@@ -355,11 +288,9 @@ class CheckInService {
           response.statusCode,
           response.body,
         );
-        print('CheckInService: Error del servidor: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('CheckInService: Error al hacer check-in: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -391,8 +322,6 @@ class CheckInService {
     Map<String, dynamic> checkOutData,
   ) async {
     try {
-      print('CheckInService: Realizando check-out...');
-      print('CheckInService: Datos: $checkOutData');
 
       // Realizar petición POST para registrar el check-out
       final response = await http
@@ -406,11 +335,9 @@ class CheckInService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('CheckInService: Respuesta check-out: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('CheckInService: Check-out realizado exitosamente');
         return _parseCheckInData(data);
       } else {
         // Manejar errores de check-out
@@ -421,7 +348,6 @@ class CheckInService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('CheckInService: Error al hacer check-out: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -495,7 +421,6 @@ class CheckInService {
   static String _getErrorMessage(int statusCode, String responseBody) {
     switch (statusCode) {
       case 400:
-        print('$responseBody');
         return 'Datos de check-in inválidos. Verifique la información.';
       case 401:
         return ErrorMessages.sessionExpired;
@@ -556,7 +481,6 @@ class CheckInService {
         return checkOutDateTime.difference(checkInDateTime);
       }
     } catch (e) {
-      print('CheckInService: Error calculando duración: $e');
     }
     return Duration.zero;
   }
@@ -641,11 +565,6 @@ class CheckInService {
     String endpoint, {
     bool useAlternativeHeaders = false,
   }) async {
-    print('CheckInService: Intentando check-in en endpoint: $endpoint');
-    print(
-      'CheckInService: Usando headers alternativos: $useAlternativeHeaders',
-    );
-    print('CheckInService: Body completo: ${json.encode(requestBody)}');
 
     // Headers básicos
     final headers = <String, String>{
@@ -662,10 +581,7 @@ class CheckInService {
       });
     }
 
-    print('CheckInService: Headers que se enviarán: $headers');
     final jsonBody = json.encode(requestBody);
-    print('CheckInService: JSON body final: $jsonBody');
-    print('CheckInService: Longitud del body: ${jsonBody.length} bytes');
 
     return await http
         .post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: jsonBody)
@@ -698,24 +614,15 @@ class CheckInService {
     Map<String, dynamic> locationData,
   ) async {
     try {
-      print('🔄 CheckInService: Iniciando cambio de ubicación durante trabajo...');
-      print('🔄 CheckInService: ID de ubicación a editar: $locationId');
-      print('🔄 CheckInService: Datos de ubicación: $locationData');
-      print('🔄 CheckInService: Token presente: ${token.isNotEmpty}');
+
 
       // Usar el endpoint correcto: PUT /api/checkins/locations/:id
       final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations/$locationId';
-      print('🔄 CheckInService: URL completa: $url');
 
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       };
-
-      // Formatear los datos según el nuevo formato del backend
-      print('🔄 CheckInService: locationData recibido: $locationData');
-      print('🔄 CheckInService: start_time en locationData: ${locationData['start_time']}');
-      print('🔄 CheckInService: end_time en locationData: ${locationData['end_time']}');
       
       // El nuevo formato del backend es más simple, solo los campos directos
       final requestBody = {
@@ -733,13 +640,8 @@ class CheckInService {
         }
       });
       
-      print('🔄 CheckInService: requestBody limpio: $cleanedBody');
 
       final jsonBody = json.encode(cleanedBody);
-      print('🔄 CheckInService: Request headers: $headers');
-      print('🔄 CheckInService: Request body: $jsonBody');
-
-      print('📡 CheckInService: Enviando petición PUT...');
       final response = await http
           .put(
             Uri.parse(url),
@@ -748,22 +650,15 @@ class CheckInService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('📡 CheckInService: Respuesta recibida');
-      print('📡 CheckInService: Status code: ${response.statusCode}');
-      print('📡 CheckInService: Response headers: ${response.headers}');
-      print('📡 CheckInService: Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         try {
           final responseData = json.decode(response.body);
-          print('✅ CheckInService: Ubicación cambiada exitosamente');
           return {
             'success': true,
             'data': responseData,
             'message': 'Ubicación cambiada exitosamente',
           };
         } catch (e) {
-          print('❌ CheckInService: Error parseando respuesta exitosa: $e');
           return {
             'success': true,
             'message': 'Ubicación cambiada exitosamente (respuesta sin parsear)',
@@ -772,64 +667,54 @@ class CheckInService {
       } else if (response.statusCode == 400) {
         try {
           final errorData = json.decode(response.body);
-          print('❌ CheckInService: Error 400 - ${errorData['message']}');
           return {
             'success': false,
             'message': errorData['message'] ?? 'Datos inválidos',
             'errors': errorData['errors'],
           };
         } catch (e) {
-          print('❌ CheckInService: Error 400 - Sin parsear: ${response.body}');
           return {
             'success': false,
             'message': 'Error 400: Datos inválidos',
           };
         }
       } else if (response.statusCode == 401) {
-        print('❌ CheckInService: Error 401 - No autorizado');
         return {
           'success': false,
           'message': 'Sesión expirada. Por favor inicia sesión nuevamente.',
         };
       } else if (response.statusCode == 403) {
-        print('❌ CheckInService: Error 403 - Prohibido');
         return {
           'success': false,
           'message': 'No tienes permisos para realizar esta acción.',
         };
       } else if (response.statusCode == 404) {
-        print('❌ CheckInService: Error 404 - Endpoint no encontrado');
         return {
           'success': false,
           'message': 'Sesión de trabajo no encontrada.',
         };
       } else if (response.statusCode == 500) {
-        print('❌ CheckInService: Error 500 - Error interno del servidor');
         return {
           'success': false,
           'message': 'Error interno del servidor. Inténtalo más tarde.',
         };
       } else {
-        print('❌ CheckInService: Error ${response.statusCode} - Respuesta: ${response.body}');
         return {
           'success': false,
           'message': 'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
         };
       }
     } on TimeoutException catch (e) {
-      print('❌ CheckInService: Timeout al cambiar ubicación: $e');
       return {
         'success': false,
         'message': 'Tiempo de espera agotado. Verifica tu conexión e inténtalo nuevamente.',
       };
     } on SocketException catch (e) {
-      print('❌ CheckInService: Error de conexión al cambiar ubicación: $e');
       return {
         'success': false,
         'message': 'Error de conexión. Verifica tu conexión a internet.',
       };
     } catch (e) {
-      print('❌ CheckInService: Excepción inesperada al cambiar ubicación: $e');
       return {
         'success': false,
         'message': 'Error inesperado: $e',
@@ -841,33 +726,25 @@ class CheckInService {
   static String _buildLocationDetail(Map<String, dynamic> locationData) {
     final locationType = locationData['location_type'];
     
-    print('🏠 _buildLocationDetail: locationType=$locationType, locationData=$locationData');
     
     // Si es "Domicilio Alternativo" (LocationTypes.REMOTE_ALTERNATIVE = 2)
     if (locationType == 2) {
-      print('🏠 _buildLocationDetail: Es domicilio alternativo');
       
       if (locationData['address'] != null && locationData['address'].toString().isNotEmpty) {
         String detail = locationData['address'];
-        print('🏠 _buildLocationDetail: Construyendo con address: $detail');
         
         // Agregar piso si está disponible
         if (locationData['floor'] != null && locationData['floor'].toString().isNotEmpty) {
           detail += ', Piso ${locationData['floor']}';
-          print('🏠 _buildLocationDetail: Agregando piso: $detail');
         }
         
         // Agregar departamento si está disponible
         if (locationData['apartment'] != null && locationData['apartment'].toString().isNotEmpty) {
           detail += ', Dpto ${locationData['apartment']}';
-          print('🏠 _buildLocationDetail: Agregando depto: $detail');
         }
         
-        print('🏠 _buildLocationDetail: Detalle final: $detail');
         return detail;
       } else {
-        print('🏠 _buildLocationDetail: ⚠️ PROBLEMA: No hay address válida para domicilio alternativo!');
-        print('🏠 _buildLocationDetail: address value: ${locationData['address']}');
         // En lugar de retornar "Domicilio Alternativo", intentar usar otros campos o dar error
         return 'Domicilio Alternativo (Sin dirección especificada)';
       }
@@ -901,25 +778,21 @@ class CheckInService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<List<Map<String, dynamic>>> getSessionLocationHistory(String token) async {
     try {
-      print('🔍 CheckInService: Obteniendo historial de ubicaciones desde API...');
       
       // Verificar que hay una sesión activa
       final todayCheckIn = await getTodayCheckIn(token);
       if (todayCheckIn == null) {
-        print('🔍 CheckInService: No hay sesión de trabajo activa');
         return [];
       }
 
       // Llamar al endpoint GET /api/checkins/locations
       final url = '$baseUrl${ApiConstants.checkinsEndpoint}/locations';
-      print('🔍 CheckInService: URL completa: $url');
 
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       };
 
-      print('📡 CheckInService: Enviando petición GET al historial de ubicaciones...');
       final response = await http
           .get(
             Uri.parse(url),
@@ -927,14 +800,9 @@ class CheckInService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('📡 CheckInService: Respuesta recibida');
-      print('📡 CheckInService: Status code: ${response.statusCode}');
-      print('📡 CheckInService: Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         try {
           final responseData = json.decode(response.body);
-          print('✅ CheckInService: Historial de ubicaciones obtenido exitosamente');
           
           // Procesar los datos del historial
           List<Map<String, dynamic>> locationHistory = [];
@@ -970,37 +838,25 @@ class CheckInService {
             return timeA.compareTo(timeB); // Orden cronológico (más antiguo primero)
           });
 
-          print('🔍 CheckInService: ✅ Historial procesado: ${locationHistory.length} entradas');
-          for (int i = 0; i < locationHistory.length; i++) {
-            print('🔍   Entrada $i: ${locationHistory[i]}');
-          }
-          
           return locationHistory;
 
         } catch (e) {
-          print('❌ CheckInService: Error parseando respuesta del historial: $e');
           return [];
         }
       } else if (response.statusCode == 404) {
         // No hay historial (es normal si no se han hecho cambios)
-        print('🔍 CheckInService: No hay historial de cambios de ubicación');
         return [];
       } else {
         // Manejar otros errores
         final errorMessage = _getErrorMessage(response.statusCode, response.body);
-        print('❌ CheckInService: Error del servidor: $errorMessage');
         return [];
       }
 
     } catch (e) {
-      print('❌ CheckInService: Error obteniendo historial de ubicaciones: $e');
-      print('❌ CheckInService: Stack trace: ${StackTrace.current}');
       
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
-        print('❌ CheckInService: Timeout al obtener historial');
       } else if (e.toString().contains('SocketException')) {
-        print('❌ CheckInService: Error de conexión al obtener historial');
       }
       
       return [];

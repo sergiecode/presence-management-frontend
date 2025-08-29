@@ -237,8 +237,8 @@ class WorkStatusPanel extends StatelessWidget {
     switch (catalogId) {
       case 1: return 101; // Oficina ABSTI
       case 2: return 102; // Swiss Medical
-      case 3: return 104; // Allianz 
-      case 4: return 103; // Galicia
+      case 3: return 103; // Allianz
+      case 4: return 104; // Galicia
       default: return catalogId + 100; // Fallback genérico
     }
   }
@@ -261,8 +261,8 @@ class WorkStatusPanel extends StatelessWidget {
     switch (locationType) {
       case 101: return 1; // Oficina ABSTI
       case 102: return 2; // Swiss Medical
-      case 104: return 3; // Allianz
-      case 103: return 4; // Galicia
+      case 103: return 3; // Allianz
+      case 104: return 4; // Galicia
       default: return locationType > 100 ? locationType - 100 : locationType;
     }
   }
@@ -1045,17 +1045,10 @@ class WorkStatusPanel extends StatelessWidget {
       );
       allExistingLocations.insert(0, mainWorkLocation); // Insertar al principio
       
-      print('DEBUG: Agregando ubicación principal para validación:');
-      print('  - UI ID: $selectedSingleLocation');
-      print('  - Backend Location Type: $backendLocationTypeId');
-      print('  - Detail: $locationName');
-      print('  - Horario: ${userStartTime!.format(context)} - ${userEndTime!.format(context)}');
     }
 
-    print('DEBUG: Total ubicaciones existentes para validación: ${allExistingLocations.length}');
     for (int i = 0; i < allExistingLocations.length; i++) {
       final loc = allExistingLocations[i];
-      print('  ${i + 1}. ID: ${loc.locationTypeId}, Horario: ${loc.startTime.format(context)} - ${loc.endTime?.format(context) ?? 'Sin fin'}');
     }
 
     final WorkLocation? newLocation = await AddLocationDialog.show(
@@ -1130,10 +1123,10 @@ class WorkStatusPanel extends StatelessWidget {
             locationText = 'Oficina de Swiss Medical Group';
             break;
           case 103:
-            locationText = 'Oficina Galicia';
+            locationText = 'Oficina Allianz';
             break;
           case 104:
-            locationText = 'Oficina Allianz';
+            locationText = 'Oficina Galicia';
             break;
           case 1:
             locationText = 'Domicilio Declarado';
@@ -1171,7 +1164,6 @@ class WorkStatusPanel extends StatelessWidget {
           
           locationText += ' ($timeRange)';
         } catch (e) {
-          print('Error formateando horarios para ubicación: $e');
           // Si hay error formateando horarios, mostrar solo la ubicación
         }
       }
@@ -1247,9 +1239,9 @@ class WorkStatusPanel extends StatelessWidget {
         case 102:
           return 'Oficina de Swiss Medical Group';
         case 103:
-          return 'Oficina Galicia';
-        case 104:
           return 'Oficina Allianz';
+        case 104:
+          return 'Oficina Galicia';
       }
       
       // Para tipos de catálogo, mapear al ID del catálogo
@@ -1303,7 +1295,6 @@ class WorkStatusPanel extends StatelessWidget {
       return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
       
     } catch (e) {
-      print('Error formateando tiempo de ubicación: $e');
       return 'Error en horario';
     }
   }

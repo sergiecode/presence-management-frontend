@@ -55,6 +55,21 @@ class AdvancedUserEditForm extends StatefulWidget {
 }
 
 class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
+  /// Formatea los horarios habituales a HH:mm - HH:mm
+  String _formatSchedule(dynamic checkin, dynamic checkout) {
+    String formatTime(dynamic t) {
+      if (t == null) return '--:--';
+      final str = t.toString();
+      if (str.contains(':')) {
+        final parts = str.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+        }
+      }
+      return str;
+    }
+    return '${formatTime(checkin)} - ${formatTime(checkout)}';
+  }
   /// Clave global para el formulario (para validación)
   final _formKey = GlobalKey<FormState>();
 
@@ -280,11 +295,21 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                       label: 'Apellido',
                       value: widget.userData!['surname'] ?? 'No especificado',
                       icon: Icons.person_outline,
+                    // Horarios habituales (solo lectura)
+                    _buildReadOnlyField(
+                      label: 'Horarios habituales',
+                      value: _formatSchedule(
+                        userData['checkin_start_time'],
+                        userData['checkout_end_time'],
+                      ),
+                      icon: Icons.schedule,
                     ),
-                    const SizedBox(height: 16),
 
-                    // Campos editables
-                    CustomTextField(
+                    _buildReadOnlyField(
+                      label: 'ID de Usuario',
+                      value: userData['id']?.toString() ?? 'N/A',
+                      icon: Icons.tag,
+                    ),
                       controller: _phoneController,
                       labelText: 'Teléfono *',
                       prefixIcon: Icons.phone,
@@ -376,6 +401,7 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                 ),
               ),
             ),
+            
 
             const SizedBox(height: 20),
 

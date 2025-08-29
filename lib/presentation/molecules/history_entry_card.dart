@@ -12,10 +12,11 @@ class HistoryEntryCard extends StatelessWidget {
 
   const HistoryEntryCard({super.key, required this.entry});
 
-  /// Formatea una fecha/hora ISO string a formato HH:mm
+  /// Formatea una fecha/hora ISO string UTC a formato HH:mm en hora local
   String _formatDateTime(String dateTimeStr) {
-    final dateTime = DateTime.parse(dateTimeStr);
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    final dateTimeUtc = DateTime.parse(dateTimeStr).toUtc();
+    final dateTimeLocal = dateTimeUtc.toLocal();
+    return '${dateTimeLocal.hour.toString().padLeft(2, '0')}:${dateTimeLocal.minute.toString().padLeft(2, '0')}';
   }
 
   /// Calcula la duración entre entrada y salida
