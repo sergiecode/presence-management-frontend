@@ -19,12 +19,16 @@ class LocationTypes {
   /// Trabajo en oficina de la empresa
   static const int OFFICE = 4;
 
+  /// Múltiples ubicaciones (usado para agregar más ubicaciones durante el día)
+  static const int MULTIPLE = 5;
+
   /// Mapeo de IDs a nombres descriptivos en español
   static const Map<int, String> names = {
     REMOTE_DECLARED: 'Domicilio Declarado',
     REMOTE_ALTERNATIVE: 'Domicilio Alternativo',
     CLIENT: 'Cliente',
     OFFICE: 'Oficina',
+    MULTIPLE: 'Múltiples Ubicaciones',
   };
 
   /// Mapeo de IDs a descripciones más detalladas
@@ -33,6 +37,7 @@ class LocationTypes {
     REMOTE_ALTERNATIVE: 'Trabajar desde un domicilio alternativo (especificar dirección)',
     CLIENT: 'Trabajar en las instalaciones del cliente',
     OFFICE: 'Trabajar en la oficina de la empresa',
+    MULTIPLE: 'Trabajar en múltiples ubicaciones durante el día',
   };
 
   /// Verifica si un tipo de ubicación requiere dirección personalizada
@@ -61,5 +66,6 @@ class LocationTypes {
     REMOTE_ALTERNATIVE,
     CLIENT,
     OFFICE,
+    MULTIPLE,
   ];
 }

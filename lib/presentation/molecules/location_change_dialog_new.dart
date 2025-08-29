@@ -32,7 +32,7 @@ class LocationChangeDialog extends StatefulWidget {
 
 class _LocationChangeDialogState extends State<LocationChangeDialog> {
   int? _selectedLocationId;
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _startTime = TimeOfDay.now(); // Inicializar con la hora actual
   TimeOfDay? _endTime;
   String _alternativeAddress = '';
   String _alternativeFloor = '';
@@ -88,10 +88,10 @@ class _LocationChangeDialogState extends State<LocationChangeDialog> {
     } else if (_selectedLocationId == LocationTypes.REMOTE_ALTERNATIVE) {
       final addressParts = <String>[
         _alternativeAddress.trim(),
-        if (_alternativeFloor.isNotEmpty) 'Piso ${_alternativeFloor.trim()}',
-        if (_alternativeApartment.isNotEmpty) 'Dpto ${_alternativeApartment.trim()}',
+        if (_alternativeFloor.isNotEmpty) _alternativeFloor.trim(),
+        if (_alternativeApartment.isNotEmpty) _alternativeApartment.trim(),
       ].where((part) => part.isNotEmpty);
-      locationDetail = addressParts.join(', '); // Usar ', ' para consistencia con el resto del código
+      locationDetail = addressParts.join(' - ');
     } else {
       // Buscar en catálogo
       final catalogLocation = widget.catalogLocations.firstWhere(

@@ -12,3 +12,4 @@ export 'app_logo.dart';
 export 'custom_button.dart';
 export 'custom_text_field.dart';
 export 'status_message.dart';
+export 'debug_panel.dart';

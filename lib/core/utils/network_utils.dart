@@ -8,7 +8,6 @@ class NetworkUtils {
   /// Verifica si hay conectividad a internet
   static Future<bool> hasInternetConnection() async {
     try {
-      print('🔍 NetworkUtils: Verificando conectividad...');
       
       // Intentar conectar a múltiples servicios con timeouts más cortos
       final futures = [
@@ -22,12 +21,9 @@ class NetworkUtils {
       final results = await Future.wait(futures, eagerError: false);
       final hasConnection = results.any((result) => result);
       
-      print('🔍 NetworkUtils: Resultados: $results');
-      print('🔍 NetworkUtils: ¿Hay conexión?: $hasConnection');
       
       return hasConnection;
     } catch (e) {
-      print('🔍 NetworkUtils: Error verificando conexión: $e');
       // En caso de error, asumir que hay conexión para intentar las APIs
       return true;
     }
@@ -42,10 +38,8 @@ class NetworkUtils {
       ).timeout(const Duration(seconds: 2)); // Timeout más corto
       
       final success = response.statusCode >= 200 && response.statusCode < 400;
-      print('🔍 NetworkUtils: $url -> ${response.statusCode} ($success)');
       return success;
     } catch (e) {
-      print('🔍 NetworkUtils: $url -> Error: $e');
       return false;
     }
   }
@@ -65,10 +59,8 @@ class NetworkUtils {
       diagnostics['nominatim'] = await _testAPIEndpoint('https://nominatim.openstreetmap.org/search?q=test&format=json&limit=1');
       diagnostics['photon'] = await _testAPIEndpoint('https://photon.komoot.io/api?q=test&limit=1');
       
-      print('🔍 NetworkUtils: Diagnósticos completados: $diagnostics');
       
     } catch (e) {
-      print('❌ NetworkUtils: Error en diagnósticos: $e');
       diagnostics['error'] = e.toString();
     }
     

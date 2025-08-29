@@ -75,12 +75,12 @@ class NavigationMenu extends StatelessWidget {
             onTap: onHistory,
           ),
 
-          _buildMenuItem(
+      /*     _buildMenuItem(
             icon: Icons.request_page,
             title: 'Solicitudes',
             subtitle: 'Gestionar permisos y ausencias',
             onTap: onRequests,
-          ),
+          ), */
 
           const Divider(height: 30),
 

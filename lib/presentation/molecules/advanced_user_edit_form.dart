@@ -225,9 +225,26 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
     return null;
   }
 
+  /// Formatea los horarios habituales a HH:mm - HH:mm
+  String _formatSchedule(dynamic checkin, dynamic checkout) {
+    String formatTime(dynamic t) {
+      if (t == null) return '--:--';
+      final str = t.toString();
+      if (str.contains(':')) {
+        final parts = str.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+        }
+      }
+      return str;
+    }
+    return '${formatTime(checkin)} - ${formatTime(checkout)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final userData = widget.userData;
+    print('userData: ' + userData.toString());
     if (userData == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -342,6 +359,16 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                     const SizedBox(height: 12),
 
                     _buildReadOnlyField(
+                      label: 'Horarios Habituales',
+                      value: (userData['checkin_start_time'] != null && userData['checkout_end_time'] != null)
+                          ? _formatSchedule(userData['checkin_start_time'], userData['checkout_end_time'])
+                          : 'No especificado',
+                      icon: Icons.access_time,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildReadOnlyField(
                       label: 'ID de Usuario',
                       value: userData['id']?.toString() ?? 'N/A',
                       icon: Icons.tag,
@@ -376,6 +403,7 @@ class _AdvancedUserEditFormState extends State<AdvancedUserEditForm> {
                 ),
               ),
             ),
+            
 
             const SizedBox(height: 20),
 

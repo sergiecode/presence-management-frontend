@@ -57,16 +57,7 @@ class _ExampleAdvancedUserEditPageState
     await Future.delayed(const Duration(seconds: 2));
 
     try {
-      // Aquí iría la lógica real de guardado
-      print('Guardando datos del usuario:');
-      print('- Nombre: $name');
-      print('- Apellido: $surname');
-      print('- Teléfono: $phone');
-      print('- Zona horaria: $timezone');
-      print('- Recordatorio: $notificationOffsetMin minutos');
-      print('- Hora check-in: $checkinStartTime');
       if (newProfileImage != null) {
-        print('- Nueva imagen: ${newProfileImage.path}');
       }
 
       // Actualizar datos locales

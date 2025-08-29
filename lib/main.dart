@@ -10,18 +10,25 @@ import 'presentation/routes/protected_route.dart';
 import 'core/themes/app_theme.dart';
 
 void main() async {
-  // Asegurar que Flutter esté inicializado
-  WidgetsFlutterBinding.ensureInitialized();
   
-  // Inicializar servicio de notificaciones
-  await NotificationService().initialize();
-  
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
-      child: const MyApp(),
-    ),
-  );
+  try {
+    // Asegurar que Flutter esté inicializado
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Inicializar servicio de notificaciones
+    await NotificationService().initialize();
+    
+    final authProvider = AuthProvider();
+    
+    runApp(
+      ChangeNotifierProvider(
+        create: (context) => authProvider,
+        child: const MyApp(),
+      ),
+    );
+  } catch (e, stackTrace) {
+    rethrow;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -32,9 +39,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        print(
-          'Main.dart Consumer: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}',
-        );
+        if (authProvider.token != null) {
+        }
+        
         return MaterialApp(
           title: 'ABSistencia',
           debugShowCheckedModeBanner: false,
@@ -42,11 +49,9 @@ class MyApp extends StatelessWidget {
           // Ruta inicial basada en el estado de autenticación
           home: authProvider.isInitialized
               ? (authProvider.isAuthenticated
-                    ? ProtectedRoute(
-                        child: HomePage(token: authProvider.token ?? ''),
-                      )
-                    : GuestRoute(child: LoginPage()))
-              : Scaffold(body: Center(child: CircularProgressIndicator())),
+                    ? _buildProtectedRoute(context, authProvider)
+                    : _buildGuestRoute(context))
+              : _buildLoadingScreen(),
           routes: {
             '/login': (context) => GuestRoute(child: LoginPage()),
             '/register': (context) => GuestRoute(child: RegisterPage()),
@@ -56,6 +61,37 @@ class MyApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _buildProtectedRoute(BuildContext context, AuthProvider authProvider) {
+    return ProtectedRoute(
+      child: HomePage(token: authProvider.token ?? ''),
+    );
+  }
+
+  Widget _buildGuestRoute(BuildContext context) {
+    return GuestRoute(child: LoginPage());
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Inicializando ABSTI...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

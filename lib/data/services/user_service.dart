@@ -28,6 +28,14 @@ class UserService {
   /// Retorna:
   /// - [Map<String, dynamic>]: Datos del usuario normalizados
   static Map<String, dynamic> _parseUserData(Map<String, dynamic> data) {
+
+    
+    // Debug específico para el campo location
+    if (data['location'] != null) {
+      final location = data['location'] as Map<String, dynamic>;
+    } else {
+    }
+
     return {
       'id': data['id'] ?? 0,
       'name': data['name'] ?? '',
@@ -39,9 +47,28 @@ class UserService {
       'timezone': data['timezone'] ?? '',
       'notification_offset_min': data['notification_offset_min'] ?? 0,
       'checkin_start_time': data['checkin_start_time'] ?? '',
+      'checkout_end_time': data['checkout_end_time'] ?? '',
       'email_confirmed': data['email_confirmed'] ?? false,
       'deactivated': data['deactivated'] ?? false,
       'pending_approval': data['pending_approval'] ?? false,
+      'active': data['active'] ?? true,
+      'dni': data['dni'] ?? '',
+      'cuil': data['cuil'] ?? '',
+      'birth_date': data['birth_date'] ?? '',
+      'hire_date': data['hire_date'] ?? '',
+      'weekly_hours': data['weekly_hours'] ?? 0,
+      'team': data['team'] ?? '',
+      'weekly_objective_days': data['weekly_objective_days'] ?? 0,
+      'monthly_objective_days': data['monthly_objective_days'] ?? 0,
+      'office_days': data['office_days'] ?? '',
+      // Incluir el objeto location completo
+      'location': data['location'],
+      // Campos de domicilio declarado (deprecated - mantener por compatibilidad)
+      'declared_address': data['declared_address'] ?? '',
+      'declared_city': data['declared_city'] ?? '',
+      'declared_state': data['declared_state'] ?? '',
+      'declared_country': data['declared_country'] ?? '',
+      'declared_postal_code': data['declared_postal_code'] ?? '',
     };
   }
 
@@ -57,7 +84,6 @@ class UserService {
   /// - Puede lanzar [Exception] si hay errores de red o del servidor
   static Future<Map<String, dynamic>?> getCurrentUser(String token) async {
     try {
-      print('UserService: Obteniendo datos del usuario...');
 
       // Realizar petición GET para obtener datos del usuario actual
       final response = await http
@@ -70,12 +96,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta del servidor: ${response.statusCode}');
 
       // Verificar si la respuesta es exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Datos recibidos exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores usando el método helper
@@ -83,11 +107,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al obtener usuario: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -98,6 +120,108 @@ class UserService {
         rethrow; // Re-lanzar la excepción original
       }
     }
+  }
+
+  /// Obtener la dirección del domicilio declarado del usuario
+  ///
+  /// Parámetros:
+  /// - [token]: Token de autenticación del usuario
+  ///
+  /// Retorna:
+  /// - [Map<String, dynamic>?]: Dirección del domicilio declarado o null si no está configurada
+  ///
+  /// Excepciones:
+  /// - Puede lanzar [Exception] si hay errores de red o del servidor
+  static Future<Map<String, dynamic>?> getUserDeclaredAddress(String token) async {
+    try {
+
+      final userData = await getCurrentUser(token);
+      if (userData == null || userData['location'] == null) {
+        return null;
+      }
+
+      final location = userData['location'] as Map<String, dynamic>;
+      
+      // Formatear la dirección según la estructura de la API
+      final declaredAddress = {
+        'calle': location['calle'] ?? '',
+        'numero': location['numero'] ?? '',
+        'piso': location['piso'] ?? '',
+        'ciudad': location['ciudad'] ?? '',
+        'provincia': location['provincia'] ?? '',
+        'codigo_postal': location['codigo_postal'] ?? '',
+        'pais': location['pais'] ?? '',
+      };
+
+      // Verificar que al menos tenga calle y numero
+      if (declaredAddress['calle']!.isEmpty && declaredAddress['numero']!.isEmpty) {
+        return null;
+      }
+
+      return declaredAddress;
+
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Formatear dirección declarada en texto legible
+  ///
+  /// Parámetros:
+  /// - [addressData]: Datos de la dirección del usuario
+  ///
+  /// Retorna:
+  /// - [String]: Dirección formateada como string
+  static String formatDeclaredAddress(Map<String, dynamic> addressData) {
+
+    
+    final parts = <String>[];
+    
+    // Calle y número (parte principal)
+    if (addressData['calle']?.isNotEmpty ?? false) {
+      String calleNumero = addressData['calle'].toString().trim();
+      if (addressData['numero']?.isNotEmpty ?? false) {
+        calleNumero += ' ${addressData['numero'].toString().trim()}';
+      }
+      parts.add(calleNumero);
+    }
+    
+    // Piso (si existe)
+    if (addressData['piso']?.isNotEmpty ?? false) {
+      final piso = addressData['piso'].toString().trim();
+      parts.add('Piso $piso');
+    }
+    
+    // Ciudad y provincia juntas
+    final locationParts = <String>[];
+    if (addressData['ciudad']?.isNotEmpty ?? false) {
+      locationParts.add(addressData['ciudad'].toString().trim());
+    }
+    if (addressData['provincia']?.isNotEmpty ?? false) {
+      locationParts.add(addressData['provincia'].toString().trim());
+    }
+    if (locationParts.isNotEmpty) {
+      final cityProvince = locationParts.join(', ');
+      parts.add(cityProvince);
+    }
+    
+    // Código postal
+    if (addressData['codigo_postal']?.isNotEmpty ?? false) {
+      final cp = 'CP ${addressData['codigo_postal'].toString().trim()}';
+      parts.add(cp);
+    }
+    
+    // País (solo si es diferente de Argentina o si no hay otros datos)
+    if (addressData['pais']?.isNotEmpty ?? false) {
+      final pais = addressData['pais'].toString().trim();
+      if (pais.toLowerCase() != 'argentina' || parts.isEmpty) {
+        parts.add(pais);
+      }
+    }
+    
+    final formatted = parts.join(', ');
+    
+    return formatted;
   }
 
   /// Actualizar perfil del usuario actual usando PATCH /me
@@ -116,8 +240,6 @@ class UserService {
     Map<String, dynamic> profileData,
   ) async {
     try {
-      print('UserService: Actualizando perfil del usuario actual');
-      print('UserService: Datos a enviar: $profileData');
 
       // Validar que solo contiene campos permitidos
       final allowedFields = {
@@ -148,12 +270,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta de actualización: ${response.statusCode}');
 
       // Verificar si la actualización fue exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Perfil actualizado exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores de actualización
@@ -161,11 +281,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al actualizar perfil: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -197,13 +315,10 @@ class UserService {
     Map<String, dynamic> userData,
   ) async {
     try {
-      print('UserService: Actualizando usuario con ID: $userId');
-      print('UserService: Datos a enviar: $userData');
 
       // Validar datos antes de enviar a la API
       final validationErrors = validateUserData(userData);
       if (validationErrors.isNotEmpty) {
-        print('UserService: Errores de validación: $validationErrors');
         throw Exception('Datos inválidos: ${validationErrors.values.first}');
       }
 
@@ -222,12 +337,10 @@ class UserService {
           )
           .timeout(const Duration(seconds: ApiConstants.timeoutDuration));
 
-      print('UserService: Respuesta de actualización: ${response.statusCode}');
 
       // Verificar si la actualización fue exitosa
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('UserService: Usuario actualizado exitosamente');
         return _parseUserData(data);
       } else {
         // Manejar errores de actualización
@@ -235,11 +348,9 @@ class UserService {
           response.statusCode,
           response.body,
         );
-        print('UserService: Error ${response.statusCode}: $errorMessage');
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('UserService: Error al actualizar usuario: $e');
 
       // Convertir errores de red en mensajes más amigables
       if (e.toString().contains('TimeoutException')) {
@@ -267,7 +378,6 @@ class UserService {
     File imageFile,
   ) async {
     try {
-      print('UserService: Subiendo avatar para usuario $userId');
 
       // Crear request multipart
       final request = http.MultipartRequest(
@@ -291,14 +401,11 @@ class UserService {
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
         final data = json.decode(responseData);
-        print('UserService: Avatar subido exitosamente');
         return data['picture'] ?? data['avatar_url'];
       } else {
-        print('UserService: Error al subir avatar: ${response.statusCode}');
         throw Exception('Error al subir imagen de perfil');
       }
     } catch (e) {
-      print('UserService: Error al subir avatar: $e');
       if (e.toString().contains('TimeoutException')) {
         throw Exception(ErrorMessages.timeoutError);
       } else if (e.toString().contains('SocketException')) {
@@ -507,5 +614,45 @@ class UserService {
     }
 
     return initials.isEmpty ? 'U' : initials;
+  }
+
+  /// Construir dirección completa del domicilio declarado
+  ///
+  /// Parámetros:
+  /// - [userData]: Datos del usuario
+  ///
+  /// Retorna:
+  /// - [String]: Dirección completa formateada o cadena vacía si no hay dirección
+  static String getDeclaredAddress(Map<String, dynamic> userData) {
+    final address = userData['declared_address']?.toString().trim() ?? '';
+    final city = userData['declared_city']?.toString().trim() ?? '';
+    final state = userData['declared_state']?.toString().trim() ?? '';
+    final country = userData['declared_country']?.toString().trim() ?? '';
+    final postalCode = userData['declared_postal_code']?.toString().trim() ?? '';
+
+    if (address.isEmpty) {
+      return '';
+    }
+
+    List<String> addressParts = [address];
+
+    if (city.isNotEmpty) {
+      addressParts.add(city);
+    }
+
+    if (state.isNotEmpty) {
+      addressParts.add(state);
+    }
+
+    if (country.isNotEmpty) {
+      addressParts.add(country);
+    }
+
+    // Agregar código postal si está disponible
+    if (postalCode.isNotEmpty) {
+      addressParts.add('($postalCode)');
+    }
+
+    return addressParts.join(', ');
   }
 }

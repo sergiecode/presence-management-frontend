@@ -48,6 +48,16 @@ class _LoginFormState extends State<LoginForm> {
   /// Controlador para el campo de contraseña
   final _passwordController = TextEditingController();
 
+  /// Controla si la contraseña está visible o no
+  bool _obscurePassword = true;
+
+  /// Alterna la visibilidad de la contraseña
+  void _togglePasswordVisibility() {
+    setState(() {
+      _obscurePassword = !_obscurePassword;
+    });
+  }
+
   @override
   void dispose() {
     // Limpiar controladores al destruir el widget
@@ -111,7 +121,16 @@ class _LoginFormState extends State<LoginForm> {
             controller: _passwordController,
             labelText: 'Contraseña',
             prefixIcon: Icons.lock,
-            obscureText: true,
+            obscureText: _obscurePassword,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                color: const Color(0xFFE67D21), // Color naranja corporativo
+                size: 20,
+              ),
+              onPressed: _togglePasswordVisibility,
+              splashRadius: 20, // Radio del efecto splash más pequeño
+            ),
             validator: _validatePassword,
             enabled: !widget.isLoading,
           ),

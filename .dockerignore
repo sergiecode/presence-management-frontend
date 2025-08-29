@@ -1,0 +1,66 @@
+# Archivos de build
+build/
+.dart_tool/
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos de backup
+*.bak
+*.backup
+
+# Directorios de dependencias de plataforma
+android/.gradle/
+android/app/build/
+android/build/
+ios/Pods/
+ios/.symlinks/
+linux/build/
+macos/build/
+windows/build/
+
+# Archivos de git
+.git/
+.gitignore
+
+# Archivos de documentación
+README.md
+DOCUMENTACION_ABSTI.md
+*.md
+
+# Archivos Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Variables de entorno
+.env
+.env.local
+.env.development
+.env.production
+
+# Archivos de test
+test/
+test_driver/
+integration_test/
+
+# Coverage
+coverage/
+
+# Archivos web ya compilados
+web/build/

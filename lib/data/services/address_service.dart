@@ -24,29 +24,21 @@ class AddressService {
 
   /// Busca direcciones usando múltiples APIs con respaldo
   static Future<List<Map<String, dynamic>>> searchAddresses(String query) async {
-    print('� AddressService: Iniciando búsqueda para "$query"');
     
     // Intentar con Nominatim primero (sin verificar conexión previamente)
     try {
-      print('🔍 AddressService: Intentando con Nominatim...');
       return await _searchWithNominatim(query);
     } catch (e) {
-      print('⚠️ AddressService: Nominatim falló: $e');
       
       // Si Nominatim falla, intentar con Photon
       try {
-        print('🔍 AddressService: Intentando con Photon como respaldo...');
         return await _searchWithPhoton(query);
       } catch (e2) {
-        print('❌ AddressService: Todas las APIs fallaron');
-        print('❌ Nominatim: $e');
-        print('❌ Photon: $e2');
         
         // Solo ejecutar diagnósticos si todas las APIs fallan
         _runNetworkDiagnosticsAsync();
         
         // Si todas fallan, devolver respuestas locales/mock
-        print('🏠 AddressService: Usando sugerencias locales para "$query"');
         return _getLocalSuggestions(query);
       }
     }
@@ -55,9 +47,7 @@ class AddressService {
   /// Ejecuta diagnósticos de red de forma asíncrona (no bloquea la UI)
   static void _runNetworkDiagnosticsAsync() {
     NetworkUtils.runNetworkDiagnostics().then((diagnostics) {
-      print('🔍 AddressService: Diagnósticos de red: $diagnostics');
     }).catchError((e) {
-      print('❌ AddressService: Error en diagnósticos: $e');
     });
   }
 
@@ -74,7 +64,6 @@ class AddressService {
       },
     );
 
-    print('🌐 AddressService: URL Nominatim: $uri');
 
     final response = await http.get(
       uri,
@@ -85,11 +74,9 @@ class AddressService {
       },
     ).timeout(const Duration(seconds: 8)); // Aumentar timeout
 
-    print('📡 AddressService: Nominatim Status: ${response.statusCode}');
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
-      print('✅ AddressService: Nominatim - ${data.length} direcciones');
 
       return data.map((item) => {
         'display_name': item['display_name'],
@@ -116,7 +103,6 @@ class AddressService {
       },
     );
 
-    print('🌐 AddressService: URL Photon: $uri');
 
     final response = await http.get(
       uri,
@@ -126,13 +112,11 @@ class AddressService {
       },
     ).timeout(const Duration(seconds: 8));
 
-    print('📡 AddressService: Photon Status: ${response.statusCode}');
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       final List<dynamic> features = data['features'] ?? [];
       
-      print('✅ AddressService: Photon - ${features.length} direcciones');
 
       return features.map((feature) {
         final properties = feature['properties'] ?? {};
@@ -155,7 +139,6 @@ class AddressService {
 
   /// Obtiene sugerencias locales cuando las APIs fallan
   static List<Map<String, dynamic>> _getLocalSuggestions(String query) {
-    print('🏠 AddressService: Usando sugerencias locales para "$query"');
     
     final suggestions = <Map<String, dynamic>>[];
     final queryLower = query.toLowerCase();
@@ -254,7 +237,6 @@ class AddressService {
       });
     }
 
-    print('🏠 AddressService: ${suggestions.length} sugerencias locales encontradas');
     return suggestions;
   }
 
@@ -309,7 +291,6 @@ class AddressService {
         },
       );
 
-      print('🔍 AddressService: Geocodificación inversa para ($lat, $lon)');
 
       final response = await http.get(
         uri,
@@ -331,7 +312,6 @@ class AddressService {
         throw Exception('Error del servidor: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 AddressService: Error en geocodificación inversa: $e');
       return null;
     }
   }

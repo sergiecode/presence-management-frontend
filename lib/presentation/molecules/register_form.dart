@@ -59,6 +59,26 @@ class _RegisterFormState extends State<RegisterForm> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  /// Controla si la contraseña está visible o no
+  bool _obscurePassword = true;
+
+  /// Controla si la confirmación de contraseña está visible o no
+  bool _obscureConfirmPassword = true;
+
+  /// Alterna la visibilidad de la contraseña
+  void _togglePasswordVisibility() {
+    setState(() {
+      _obscurePassword = !_obscurePassword;
+    });
+  }
+
+  /// Alterna la visibilidad de la confirmación de contraseña
+  void _toggleConfirmPasswordVisibility() {
+    setState(() {
+      _obscureConfirmPassword = !_obscureConfirmPassword;
+    });
+  }
+
   @override
   void dispose() {
     // Limpiar todos los controladores al destruir el widget
@@ -226,7 +246,16 @@ class _RegisterFormState extends State<RegisterForm> {
             controller: _passwordController,
             labelText: 'Contraseña *',
             prefixIcon: Icons.lock,
-            obscureText: true,
+            obscureText: _obscurePassword,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                color: const Color(0xFFE67D21), // Color naranja corporativo
+                size: 20,
+              ),
+              onPressed: _togglePasswordVisibility,
+              splashRadius: 20, // Radio del efecto splash más pequeño
+            ),
             validator: _validatePassword,
             enabled: !widget.isLoading,
           ),
@@ -237,7 +266,16 @@ class _RegisterFormState extends State<RegisterForm> {
             controller: _confirmPasswordController,
             labelText: 'Confirmar contraseña *',
             prefixIcon: Icons.lock_outline,
-            obscureText: true,
+            obscureText: _obscureConfirmPassword,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                color: const Color(0xFFE67D21), // Color naranja corporativo
+                size: 20,
+              ),
+              onPressed: _toggleConfirmPasswordVisibility,
+              splashRadius: 20, // Radio del efecto splash más pequeño
+            ),
             validator: _validateConfirmPassword,
             enabled: !widget.isLoading,
           ),
